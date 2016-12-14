@@ -15,7 +15,7 @@ def gauss_tone(t, tau, f0):
 def Analyse(filename,
             trace=False,
             delimiter=',', 
-            simple=False,
+            simple=True,
             element=0, 
             hilbert=False, 
             save=None, 
@@ -96,6 +96,7 @@ def Analyse(filename,
         
     if dims[1] < 2:
         raise ValueError('Time information must be supplied')
+    dims = np.shape(raw)
     
     if simple == False:
         time = raw[:,-1]
@@ -107,6 +108,9 @@ def Analyse(filename,
     elif simple == True:
         time = raw[:,0]
         toAnalyse = raw[:,1]
+    
+    else:
+        raise ValueError('simple must be a boolean, True or False')
         
     dt = time[1] - time[0]
     nPoints = len(time)
