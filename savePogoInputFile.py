@@ -18,6 +18,7 @@ def writePogoInputFile(fileName,
                        elements,
                        elementTypes,
                        signals,
+                       historyMeasurement,
                        precision = 8,
                        nDims = 2,
                        nDofPerNode = None,
@@ -29,13 +30,13 @@ def writePogoInputFile(fileName,
                        materialTypeRefs = None,
                        orientationRefs = None,
                        elementParameters = None,
-                       materials = [[0, 7E10, 0.34, 2700.],],
+                       materials = [[0, 7E10, 0.34, 2700.],], #Aluminium
                        orientations = None,
                        boundaryConditions = None,
-                       historyMeasurement = None,
                        historyMeasurementFrequency = 20,
                        historyMeasurementStart = 1,
-                       fieldStoreIncrements = None):
+                       fieldStoreIncrements = None,
+                       folderIn = None):
     '''
     Function to write a Pogo input file directly to the Pogo format. Defaults
     are supplied for all values but most should be set for a model to be run
@@ -70,9 +71,15 @@ def writePogoInputFile(fileName,
         nodes the signal is appled to, DOF applied to must be in range 
         [1, nDofPerNode], signal type is either 0 for a force or 1 for a 
         displacement, signal must be of length nt so must be sampled at dt.
+
+    historyMeasurement : iterable
+        The nodes and degree of freedom at which to record history data
+        specified in (node numbers, degree of freedom). Default is None but
+        normally this will be set unless only field measurements are desired.
+        Duplicate degrees of freedom for the same node are not allowed.
         
     precision : int, optional
-        The precision of the model. Default is 8 (float64) but can be set to
+        The precision of the output. Default is 8 (float64) but can be set to
         4 for float32.
         
     nDims : int, optional
@@ -89,7 +96,8 @@ def writePogoInputFile(fileName,
         anything greater than 1024.
         
     runName : string, optional
-        The name of the Pogo job.
+        The name of the Pogo job used within Pogo, does not effect any file
+        names.
        
     nt : int, optional
         The number of time steps that will be computed. Default is 100.
@@ -139,12 +147,6 @@ def writePogoInputFile(fileName,
         freedom. Default is None in which case no boundary conditions are
         applied.
         
-    historyMeasurement : iterable
-        The nodes and degree of freedom at which to record history data
-        specified in (node numbers, degree of freedom). Default is None but
-        normally this will be set unless only field measurements are desired.
-        Duplicate degrees of freedom for the same node are not allowed.
-        
     historyMeasurementFrequency : int
         The number of time increments between history measurements being
         taken. Default is 20.
@@ -157,13 +159,23 @@ def writePogoInputFile(fileName,
         The increments (1 indexed) at which to output the field at. Default
         is None which does not record any field data.
         
+    folderIn : string, optional
+        Use this if the file is being written in a different location to the
+        one that this function is being called from. Default is None.
+        
     Returns
     -------
     None
     
     '''
     
-    with open(fileName+'.pogo-inp', 'wb') as f:
+    if folderIn == None:
+        dFileName = fileName
+        
+    else:
+        dFileName = r'{}\{}'.format(folderIn, fileName)
+    
+    with open(dFileName + '.pogo-inp', 'wb') as f:
 
         ##### Generate the file header
         header = np.array(['']*20, dtype='str')

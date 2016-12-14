@@ -69,6 +69,7 @@ class pogoHistData:
          self.dt = dt
          self.startMeasure = startMeasure
          self.precision = precision
+         self.timeBase = np.linspace(0, self.nt-1, self.nt) * self.dt
          
          return
 
@@ -80,7 +81,8 @@ def loadPogoHistory(fileName):
     Parameters
     ----------
     fileName : string
-        The name of the file to be loaded in.
+        The name of the file to be loaded. Should include the file extension
+        '.pogo-hist'
         
     Returns
     -------
@@ -88,6 +90,8 @@ def loadPogoHistory(fileName):
         The pogo history data in an instance of the pogoHistData class.
     
     '''
+    if fileName[-10:] != '.pogo-hist':
+        raise ValueError('File must be a .pogo-hist file.')
 
     with open(fileName, 'rb') as f:
         header = struct.unpack('20s', f.read(20))

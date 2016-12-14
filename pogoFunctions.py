@@ -25,7 +25,8 @@ def loadNodeFile(fileName):
     Parameters
     ----------
     fileName : string
-        The name of the .node file to read.
+        The name of the .node file to read. The extension '.node' must be
+        passed in fileName.
         
     Returns
     -------
@@ -96,7 +97,7 @@ def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=No
     Parameters
     ----------
     nodes : array, float
-        The locations of the nodes in the shape (nDim, nNodes).
+        The locations of the nodes in the shape (nDims, nNodes).
         
     transducerCentre : array, float
         The centre of the array in global coordinates. Should be of length
@@ -106,11 +107,12 @@ def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=No
         The width of the transducer in the x dimension.
         
     yWidth : float, optional
-        The width of the transducer in the y dimension.
+        The width of the transducer in the y dimension. If None, it assumes
+        it is square and is set to xWidth
         
     angle : float, optional
         This allows for a rotation of the transducer on the surface of the
-        specimen. Angle must be in degrees and is anti-clockwise to the
+        specimen. Angle must be in degrees and is anti-clockwise around the
         positive z axis. 0 degrees points in the direction of the positive
         x axis.
         
@@ -118,7 +120,8 @@ def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=No
         The 2D shape of the transducer footprint. Default is 'rectangular',
         the other allowed options are: 'elliptical' in which case specifying
         a yWidth is needed to specify the other axis, 'circular' in which
-        case yWidth is set equal to xWidth.
+        case yWidth is set equal to xWidth. Currently only 'rectangular' is
+        supported.
         
     Returns
     -------
@@ -130,10 +133,16 @@ def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=No
     if nDims not in [2,3]:
         raise ValueError('nodes must have 2 or 3 rows (coordinates).')
     
+    if nDims != len(transducerCentre):
+        raise ValueError('transducerCentre must have the same number of dimensions as the node coordinates')
+        
     x_min = transducerCentre[0] - xWidth/2.
     x_max = transducerCentre[0] + xWidth/2.
     
     if nDims == 3:
+        if yWidth == None:
+            yWidth = xWidth
+            
         if shape == 'rectangular':
             y_min = transducerCentre[1] - yWidth/2.
             y_max = transducerCentre[1] + yWidth/2.
@@ -183,7 +192,7 @@ def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=No
         
         nodeIndices = np.where((0<beta) & (beta<vector2) & (0<alpha) & (alpha<vector1))[0]
         
-    return onSurf[nodeIndices]
+    return (onSurf[nodeIndices]).astype('int32')
         
 
 def rotate2D(position, angle, centreOfRotation):
