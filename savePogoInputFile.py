@@ -36,7 +36,8 @@ def writePogoInputFile(fileName,
                        historyMeasurementFrequency = 20,
                        historyMeasurementStart = 1,
                        fieldStoreIncrements = None,
-                       folderIn = None):
+                       folderIn = None,
+                       totalForce = False):
     '''
     Function to write a Pogo input file directly to the Pogo format. Defaults
     are supplied for all values but most should be set for a model to be run
@@ -162,6 +163,12 @@ def writePogoInputFile(fileName,
     folderIn : string, optional
         Use this if the file is being written in a different location to the
         one that this function is being called from. Default is None.
+        
+    totalForce : boolean, optional
+        This is to be used in conjunction with a force load. Set to True to
+        apply a total load which is then divided by the number of nodes that
+        a load is applied to (True) or have the supplied force applied to all
+        nodes (False). Default is False
         
     Returns
     -------
@@ -436,8 +443,11 @@ def writePogoInputFile(fileName,
             
             if np.size(signals[c1][1]) != 1 and len(signals[c1][1]) != nNodes:
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
-                
-            amp = np.array([signals[c1][1],], dtype=precString)
+            
+            if totalForce == True:
+                amp = np.array([signals[c1][1]/nNodes,], dtype=precString)
+            else:
+                amp = np.array([signals[c1][1],], dtype=precString)
             amp.tofile(f)
             
             sig = np.array(signals[c1][4], dtype=precString)
