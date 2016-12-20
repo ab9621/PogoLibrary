@@ -64,11 +64,14 @@ def circleGen(centre,r,dTheta=None,nPoints=None):
     r : float
         The radius of the circle.
         
-    dTheta : float
+    dTheta : float, optional
         The change in angle between two points on the boundary of the circle.
+        The default is None in which case nPoints is used to determine the
+        change in angle.
         
-    nPoints : int
-        The number of points on the boundary of the circle.
+    nPoints : int, optional
+        The number of points on the boundary of the circle. The dedault is
+        None in which case dTheta determines the number of points.
         
     Output
     -----
