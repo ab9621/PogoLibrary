@@ -444,10 +444,33 @@ def writePogoInputFile(fileName,
             if np.size(signals[c1][1]) != 1 and len(signals[c1][1]) != nNodes:
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
             
-            if totalForce == True:
-                amp = np.array([signals[c1][1]/nNodes,], dtype=precString)
-            else:
+            ##### this needs fixing - need to generate an array if only a float is passed.
+            print signals[c1][1]
+            print type(signals[c1][1])
+            if type(signals[c1][1]) is float:
+                if totalForce == True:
+                    if sigType == 1:
+                        raise ValueError('totalForce not supported for displacement load.')
+                    else:
+                        ampVal = signals[c1][1]/nNodes
+
+                else:
+                    ampVal = signals[c1][1]
+                    
+                amp = np.array(np.ones(nNodes)*ampVal, dtype=precString)
+
+            elif type(signals[c1][1]) is np.ndarray:
+                if len(signals[c1][1]) != nNodes:
+                    raise ValueError('If signal amplitude is an array, a value must be specified for each node in the transducer.')
+                
+                if totalForce == True:
+                    raise Warning('totalForce is not supported for loads specified for individual nodes.')
+
                 amp = np.array([signals[c1][1],], dtype=precString)
+                    
+            else:
+                raise ValueError('Signal amplitude not recognised')
+                
             amp.tofile(f)
             
             sig = np.array(signals[c1][4], dtype=precString)
