@@ -128,7 +128,7 @@ def Analyse(filename,
         
         plt.subplot(211)
         if hilbert == True:
-            plt.plot(time*1E6, np.abs(SS.hilbert(toAnalyse)))
+            plt.plot(time*1E6, np.abs(SS.hilbert(toAnalyse)), label='Hilbert Trace')
         else:
             plt.plot(time*1E6, toAnalyse, label='Raw Trace')
             
