@@ -37,7 +37,8 @@ def writePogoInputFile(fileName,
                        historyMeasurementStart = 1,
                        fieldStoreIncrements = None,
                        folderIn = None,
-                       totalForce = False):
+                       totalForce = False,
+                       version=1.04):
     '''
     Function to write a Pogo input file directly to the Pogo format. Defaults
     are supplied for all values but most should be set for a model to be run
@@ -168,7 +169,11 @@ def writePogoInputFile(fileName,
         This is to be used in conjunction with a force load. Set to True to
         apply a total load which is then divided by the number of nodes that
         a load is applied to (True) or have the supplied force applied to all
-        nodes (False). Default is False
+        nodes (False). Default is False.
+        
+    version : float, optional
+        The version of the input file, this is used with older versions of
+        Pogo. Default is most current, 1.04, but can be changed to 1.03.
         
     Returns
     -------
@@ -186,7 +191,9 @@ def writePogoInputFile(fileName,
 
         ##### Generate the file header
         header = np.array(['']*20, dtype='str')
-        headerString = '%pogo-inp1.04'
+        if version not in [1.03, 1.04]:
+            raise ValueError('Input file version must be 1.03 or 1.04.')
+        headerString = '%pogo-inp{}'.format(version)
         for c1 in range(0, len(headerString)):
             header[c1] = headerString[c1]
         
@@ -500,8 +507,9 @@ def writePogoInputFile(fileName,
             historyMeasurementFrequency = np.array([historyMeasurementFrequency,], dtype='int32')
             historyMeasurementFrequency.tofile(f)
             
-            historyMeasurementStart = np.array([historyMeasurementStart-1,], dtype='int32')
-            historyMeasurementStart.tofile(f)
+            if version == 1.04:
+                historyMeasurementStart = np.array([historyMeasurementStart-1,], dtype='int32')
+                historyMeasurementStart.tofile(f)
             
             hist = hist.astype('int32')
             hist.tofile(f)

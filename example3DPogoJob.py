@@ -108,7 +108,7 @@ A warning on file names: Pogo discards everything after the first full stop,
 e.g. 'abc.def' will become 'abc'.
 '''
 jobName = 'ExamplePogoJob'
-path =  # MAKE SURE THIS IS SET
+path =  r'D:\Example3DPogoJob' # MAKE SURE THIS IS SET
 
 # Test if path is set
 if path == '':
@@ -118,9 +118,9 @@ if path == '':
 '''
 In this case a simple 10 mm cube of aluminium. 
 '''
-xSize = 0.03
-ySize = 0.03
-zSize = 0.03
+xSize = 0.01
+ySize = 0.01
+zSize = 0.01
 
 gF.write3DBlockPolyFile(xSize,
                         ySize,
@@ -184,7 +184,7 @@ print 'modelTimeStep = {}s'.format(modelTimeStep)
 nTimeSteps = int(modelTime/modelTimeStep)
 print 'nTimeSteps = {}'.format(nTimeSteps)
 
-transducerWidth = xSize/5.
+transducerWidth = 0.005 #xSize/5.
 transducerCentre = np.array([xSize/2., ySize/2., zSize])
 
 transducerNodes = pF.findNodesInTransducer(nodes,
