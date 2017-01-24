@@ -173,7 +173,8 @@ def writePogoInputFile(fileName,
         
     version : float, optional
         The version of the input file, this is used with older versions of
-        Pogo. Default is most current, 1.04, but can be changed to 1.03.
+        Pogo. Default is most current, 1.04, but can be changed to 1.03. It
+        will fail if anything else is passed.
         
     Returns
     -------
