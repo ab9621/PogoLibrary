@@ -12,6 +12,12 @@ anyone writing pogo input files from Python.
 The functions included are:
 loadNodeFile
 loadElementFile
+gaussTone
+findNodesInTransducer
+rotate2D
+gaussianAngledBeam
+tukeyWindow
+
 
 10/10/2016 Version 1.0
 """
@@ -62,7 +68,7 @@ def loadElementFile(fileName):
     elements = (np.loadtxt(fileName, skiprows=1)[:,1:]).T
     return elements.astype('int32')
     
-def gauss_tone(t, tau, f0):
+def gaussTone(t, tau, f0):
     '''
     Function to generate a 5 cycle Gaussian tone burst.
     
@@ -302,22 +308,52 @@ def gaussianAngledBeam(transducerNodes, verticalAngle, dt, nt, velocity, f0, xAn
         taus = distances*np.sin(verticalAngle)*1./velocity + 1E-6 #1E-6 is a shift
     
     for c1 in range(0, nNodes):
-        traces[:,c1] = gauss_tone(np.copy(time), taus[c1], f0)
+        traces[:,c1] = gaussTone(np.copy(time), taus[c1], f0)
         
     return traces
 
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    r = np.linspace(0,10,11).astype(int)
-    x,y,z = np.meshgrid(r,r,r)
-    x = x.flatten()
-    y = y.flatten()
-    z = z.flatten()
-    nodes = np.vstack((x,y,z))
-    t = [5,5,10]
-    inds = findNodesInTransducer(nodes, t, 2, yWidth=2, angle=45.)
-    traces = gaussianAngledBeam(nodes[:,inds], 45., 2E-9, 5000, 3150.,4E6, xAngle=45., centre=t)
-    plt.imshow(traces, interpolation='None', aspect='auto')
-    for a in inds:
-        print nodes[:,a]
+def tukeyWindow(left, right, taperWidth, nWindow, rightTaperWidth=None):
+    '''
+    Function to return a Tukey window.
+    
+    Parameters
+    ----------
+    left : int
+        The index of the position where the window first reaches 1
+        
+    right : int
+        The index of the position where the window last reaches 1
+        
+    taperWidth : int
+        The width of the taper regions
+        
+    nWindow : int
+        The length of the whole array in which the window sits
+        
+    rightTaperWidth : optional
+        If this is None then the taper on both sides are of equal length. If
+        set to an int, this is the width of the right taper and taperWidth is
+        the width of the left taper. Default is None in which case the window
+        is symmetric
+        
+    Returns
+    -------
+    window : array, float
+        The tukey window
+    '''
+    lWidth = taperWidth
+    if rightTaperWidth == None:
+        rWidth = taperWidth
+        
+    else:
+        try:
+            rWidth = int(rightTaperWidth)
+        except:
+            raise ValueError('rightTaperWidth must be an int.')
+            
+    window = np.zeros(nWindow)
+    window[left:right] = 1.0
+    window[left-lWidth:left] = 0.5*(1.-np.cos(np.pi*np.linspace(0, nWindow-1, nWindow)/(nWindow-1)))
+    window[right:right+rWidth] = 0.5*(1+np.cos(np.pi*(np.linspace(0, nWindow-1, nWindow))/(nWindow-1)))
+    
+    return window
