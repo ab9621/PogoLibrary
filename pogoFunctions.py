@@ -353,7 +353,7 @@ def tukeyWindow(left, right, taperWidth, nWindow, rightTaperWidth=None):
             
     window = np.zeros(nWindow)
     window[left:right] = 1.0
-    window[left-lWidth:left] = 0.5*(1.-np.cos(np.pi*np.linspace(0, nWindow-1, nWindow)/(nWindow-1)))
-    window[right:right+rWidth] = 0.5*(1+np.cos(np.pi*(np.linspace(0, nWindow-1, nWindow))/(nWindow-1)))
+    window[left-lWidth:left] = 0.5*(1.-np.cos(np.pi*np.linspace(0, lWidth-1, lWidth)/(lWidth-1)))
+    window[right:right+rWidth] = 0.5*(1+np.cos(np.pi*(np.linspace(0, rWidth-1, rWidth))/(rWidth-1)))
     
     return window

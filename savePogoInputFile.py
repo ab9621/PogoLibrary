@@ -453,8 +453,6 @@ def writePogoInputFile(fileName,
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
             
             ##### this needs fixing - need to generate an array if only a float is passed.
-            print signals[c1][1]
-            print type(signals[c1][1])
             if type(signals[c1][1]) is float:
                 if totalForce == True:
                     if sigType == 1:
