@@ -6,6 +6,8 @@ This is a library of functions related to converting AutoCAD .dxf files to
 https://www.cs.cmu.edu/~quake/triangle.html
 https://www.cs.cmu.edu/~quake/triangle.poly.html
      
+Prequisites: dxfgrabber 0.8.3 Obtained from 
+    https://pypi.python.org/pypi/dxfgrabber
  The functions included are:
  dxfToPoly
  writePoly2d
@@ -253,7 +255,7 @@ def convertToPolyline(entity,elementSize)    :
     angleRange = thetaEnd - thetaBegin            
     r = entity.radius
     dTheta = np.arcsin(elementSize/(2 * r)) * 2
-    nTheta = angleRange/dTheta
+    nTheta = int(angleRange/dTheta)
     polyline = np.zeros([nTheta-1,2])
     theta = np.linspace(thetaBegin,thetaEnd,nTheta)
     polyline[:,0] = r * np.cos(theta[:-1]) + entity.center[0]
