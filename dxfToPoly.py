@@ -68,7 +68,7 @@ def dxfToPoly(filePath=None,elementSize = 2e-5) :
     return 0
 
 def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
-	'''
+    '''
 	Function to write information loaded from the .dxf file to a .poly file.
 	Parameters
     ----------
@@ -85,14 +85,14 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     Returns
     -------
 	0, regardless of success or failure. May implement error codes in the future.
-	'''
+    '''
     filePath = filePath[:-4]
     filePath += '.poly'
     
     with open(filePath,'w') as f:
-        f.write('# <Number of nodes> <Number of dimensions> <Number of Boundary markers>\n')
+        f.write('<# of vertices> <dimension (must be 2)> <# of attributes> <# of boundary markers (0 or 1)>\n')
         numberOfVertices=sum(len(v) for v in pslg.values())
-        f.write("{} 2 ".format(numberOfVertices) + "{} \n".format(len(pslg[boundaryKey])))
+        f.write("{} 2 ".format(numberOfVertices) + "0 {} \n".format(len(pslg[boundaryKey])))
         boundaryNames = list(pslg.keys())
         jj=1
         for boundaryName in boundaryNames:
@@ -124,7 +124,7 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     return 0
     
 def findOuterBoundaryKey(pslg):
-	'''
+    '''
 	Function to automatically determine the external boundary in the PSLG. 
 	Essentially checks for any of the entities which encloses all other entities.
 	
@@ -137,7 +137,7 @@ def findOuterBoundaryKey(pslg):
     -------
     key : String
         The key corresponding to the enclosing boundary in the PSLG
-	'''
+    '''
     keys = list(pslg.keys())
     for ii in range(len(keys)):
         jj = 0
@@ -151,7 +151,7 @@ def findOuterBoundaryKey(pslg):
     raise ValueError(errStr)
     
 def findPSLG(entities,elementSize):
-	'''
+    '''
 	Function to determine the PSLG entites from the .dxf entities. 
 	Reads LWPOLYLINE and LINE directly, and converts CIRCLES and 
 	ARCS into LWPOLYLINES based on elementSize.
@@ -170,7 +170,7 @@ def findPSLG(entities,elementSize):
 	isClosed : dict
 		Dictionary of booleans corresponding to the pslg entities. 'true' forces the 
 		pslg to close the entity, 'false' does not.		
-	'''
+    '''
     numberOfEntities = len(entities)
     pslg = {}
     isClosed = {}
@@ -207,8 +207,8 @@ def findPSLG(entities,elementSize):
     print(successStr)
     return (pslg,isClosed)
 
-def closeLine(line):
-	'''
+def closeLine(vertices):
+    '''
 	Function to close a polyline
 	
 	Parameters
@@ -219,14 +219,14 @@ def closeLine(line):
     -------
     line : float array
         Array of (x,y) pairs representing vertices on a closed polyline.	
-	'''
+    '''
     closedVertices = np.zeros([len(vertices)+1,2])
     closedVertices[0:len(vertices)-1,:] = vertices
     closedVertices[-1,:] = vertices[0,:]
     return closedVertices
     
 def convertToPolyline(entity,elementSize)    :
-	'''
+    '''
 	Function to convert ARC and CIRCLE entities to polylines.
 	
 	Parameters
@@ -243,7 +243,7 @@ def convertToPolyline(entity,elementSize)    :
     -------
     polyline : float array
         Array of (x,y) pairs representing vertices on a polyline representing the entity.	
-	'''
+    '''
     if entity.dxftype == 'CIRCLE':
         thetaBegin = 0
         thetaEnd = 2*np.pi
