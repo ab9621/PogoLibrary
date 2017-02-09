@@ -29,7 +29,6 @@ import numpy as np
 
 def dxfToPoly(filePath=None,elementSize = 2e-5) :
     '''
-    
     Function to convert .dxf file to .poly file, ready for use with Triangle.
 	
 	Parameters
@@ -63,10 +62,10 @@ def dxfToPoly(filePath=None,elementSize = 2e-5) :
 
     dxfFile = dxf.readfile(filePath)
     entities = dxfFile.entities
-    boundaries,isClosed = findPSLG(entities,elementSize)
+    pLines,isClosed = findPlines(entities,elementSize)
     holes = findHoles(entities)
-    key = findOuterBoundaryKey(boundaries)
-    writePoly2d(boundaries,isClosed,holes,key,filePath)
+    indexOfBoundary = findOuterBoundaryKey(pLines)
+    writePoly2d(pLines,isClosed,holes,indexOfBoundary,filePath)
     return 0
 
 def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
@@ -74,8 +73,8 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
 	Function to write information loaded from the .dxf file to a .poly file.
 	Parameters
     ----------
-    pslg : dict
-		Dictionary of .dxf entities, represented as (x,y) pair arrays constituting a polyline.
+    pLines : list
+		List of matplotlib.path object containing polyline information obtained from .dxf file.
     isClosed : dict
 		Dictionary of booleans corresponding to the pslg entities. 'true' forces the 
 		pslg to close the entity, 'false' does not.
@@ -93,28 +92,29 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     
     with open(filePath,'w') as f:
         f.write('<# of vertices> <dimension (must be 2)> <# of attributes> <# of boundary markers (0 or 1)>\n')
-        numberOfVertices=sum(len(v) for v in pslg.values())
+        numberOfVertices=sum(len(v) for v in pslg)
         f.write("{} 2 ".format(numberOfVertices) + "0 {} \n".format(len(pslg[boundaryKey])))
-        boundaryNames = list(pslg.keys())
+        
         jj=1
-        for boundaryName in boundaryNames:
-            if boundaryName==boundaryKey:
+        for ii in range(len(pslg)):
+            
+            if ii==boundaryKey:
                 writeStr = "{} {} 1\n"
             else:
                 writeStr = "{} {}\n"
-            for ii in range(len(pslg[boundaryName])):
-                f.write("{} ".format(jj)+writeStr.format(*pslg[boundaryName].vertices[ii]))
+            for kk in range(len(pslg[ii].vertices)):
+                f.write("{} ".format(jj)+writeStr.format(*pslg[ii].vertices[kk]))
                 jj+=1
         
-        f.write("{} 0\n".format(numberOfVertices - len(boundaryNames) + sum(v for v in isClosed.values())))
+        f.write("{} 0\n".format(numberOfVertices - len(pslg) + sum(v for v in isClosed)))
         
         jj = 1
-        for boundaryName in boundaryNames:
+        for ii in range(len(pslg)):
             jStart = jj
-            for ii in range(len(pslg[boundaryName])-1):
+            for kk in range(len(pslg[ii])-1):
                 f.write("{} {} {}\n".format(jj,jj,jj+1))
                 jj+=1
-            if isClosed[boundaryName]:
+            if isClosed[ii]:
                 f.write("{} {} {}\n".format(jj,jj,jStart))
                 jj+=1
         f.write("{}\n".format(len(holes)))
@@ -125,34 +125,31 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     
     return 0
     
-def findOuterBoundaryKey(pslg):
+def findOuterBoundaryKey(pLines):
     '''
 	Function to automatically determine the external boundary in the PSLG. 
 	Essentially checks for any of the entities which encloses all other entities.
 	
 	Parameters
     -------
-	pslg : dict
-		Dictionary of .dxf entities, represented as (x,y) pair arrays constituting a polyline.
+	pLines : list
+		List of matplotlib.path object containing polyline information obtained from .dxf file.
 	
 	Returns
     -------
     key : String
         The key corresponding to the enclosing boundary in the PSLG
     '''
-    keys = list(pslg.keys())
-    for ii in range(len(keys)):
+    for ii in range(len(pLines)):
         jj = 0
-        key = keys[ii]
-        print(key)
-        while np.all(pslg[key].contains_points(pslg[keys[jj]].vertices)) or jj==ii:
-            if jj == len(keys)-1:
-                return key
+        while np.all(pLines[ii].contains_points(pLines[jj].vertices)) or jj==ii:
+            if jj == len(pLines)-1:
+                return ii
             jj+=1
     errStr = "Must have one entity (LWPOLYLINE,CIRCLE) defining the outer boundary."
     raise ValueError(errStr)
     
-def findPSLG(entities,elementSize):
+def findPlines(entities,elementSize):
     '''
 	Function to determine the PSLG entites from the .dxf entities. 
 	Reads LWPOLYLINE and LINE directly, and converts CIRCLES and 
@@ -167,47 +164,58 @@ def findPSLG(entities,elementSize):
 		The length of the LWPOLYLINE segments generated from ARC and CIRCLE entities.
     Returns
     -------
-    pslg : dict
-		Dictionary of .dxf entities, represented as (x,y) pair arrays constituting a polyline.
+    pLines : list
+		List of matplotlib.path object containing polyline information obtained from .dxf file.
 	isClosed : dict
 		Dictionary of booleans corresponding to the pslg entities. 'true' forces the 
 		pslg to close the entity, 'false' does not.		
     '''
     numberOfEntities = len(entities)
     pslg = {}
+    pLines = []
     isClosed = {}
+    isClosedList = []
     jj=0
     for ii in range(numberOfEntities):
         boundaryName = "{}".format(entities[ii].dxftype) + ' {}'.format(jj)
         if entities[ii].dxftype == 'LWPOLYLINE':
             if entities[ii].is_closed:
                 isClosed[boundaryName] = True
+                isClosedList.append(True)
             else:
                 isClosed[boundaryName] = False
+                isClosedList.append(True)
             vertices = np.asarray(entities[ii].points)
                 
-            pslg[boundaryName] = mplPath.Path(vertices);
+            pslg[boundaryName] = mplPath.Path(vertices)
+            pLines.append(mplPath.Path(vertices))
             jj = jj+1
         elif entities[ii].dxftype == 'CIRCLE' or entities[ii].dxftype == 'ARC':
             pslg[boundaryName]=convertToPolyline(entities[ii],elementSize)
+            pLines.append(convertToPolyline(entities[ii],elementSize))
             if entities[ii].dxftype == 'CIRCLE':
                 isClosed[boundaryName] = True
+                isClosedList.append(True)
             else:
                 isClosed[boundaryName] = False
+                isClosedList.append(True)
             jj = jj+1
         elif entities[ii].dxftype == 'LINE':
             pslg[boundaryName] = mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
                                                    [entities[ii].end[0]  ,entities[ii].end[1] ]]))
+            pLines.append(mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
+                                                   [entities[ii].end[0]  ,entities[ii].end[1] ]])))
             isClosed[boundaryName] = False
+            isClosedList.append(False)
             jj = jj+1
         elif entities[ii].dxftype == 'POINT':
             continue
         else:
             warnStr="Currently only LWPOLYLINE,CIRCLE,ARC and LINE supported for boundary definition. Found {}".format(entities[ii].dxftype)
             warnings.warn(warnStr)
-    successStr = "Found {} covnertible entities.".format(jj)
+    successStr = "Found {} convertible entities.".format(jj)
     print(successStr)
-    return (pslg,isClosed)
+    return (pLines,isClosedList)
 
 def closeLine(vertices):
     '''
@@ -252,6 +260,10 @@ def convertToPolyline(entity,elementSize)    :
     elif entity.dxftype == 'ARC':
         thetaBegin = entity.start_angle * np.pi / 180
         thetaEnd = entity.end_angle * np.pi / 180
+    else:
+        errStr = 'Error: Invalid entity passed to convertToPolyline.'
+        raise ValueError(errStr)
+            
     angleRange = thetaEnd - thetaBegin            
     r = entity.radius
     dTheta = np.arcsin(elementSize/(2 * r)) * 2
