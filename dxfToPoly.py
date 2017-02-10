@@ -64,7 +64,7 @@ def dxfToPoly(filePath=None,elementSize = 2e-5) :
     entities = dxfFile.entities
     pLines,isClosed = findPlines(entities,elementSize)
     holes = findHoles(entities)
-    indexOfBoundary = findOuterBoundaryKey(pLines)
+    indexOfBoundary = findOuterBoundaryIndex(pLines)
     writePoly2d(pLines,isClosed,holes,indexOfBoundary,filePath)
     return 0
 
@@ -125,7 +125,7 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     
     return 0
     
-def findOuterBoundaryKey(pLines):
+def findOuterBoundaryIndex(pLines):
     '''
 	Function to automatically determine the external boundary in the PSLG. 
 	Essentially checks for any of the entities which encloses all other entities.
@@ -142,7 +142,7 @@ def findOuterBoundaryKey(pLines):
     '''
     for ii in range(len(pLines)):
         jj = 0
-        while np.all(pLines[ii].contains_points(pLines[jj].vertices,radius = 1.1)) or jj==ii:
+        while np.all(pLines[ii].contains_points(pLines[jj].vertices)) or jj==ii:
             if jj == len(pLines)-1:
                 return ii
             jj+=1
