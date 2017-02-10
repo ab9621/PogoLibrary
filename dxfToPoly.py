@@ -294,9 +294,10 @@ def findHoles(entities):
 def plotPoly(filePath):
     vertices,lines = readPoly(filePath)
     plt.figure()
-    plt.plot(vertices[:,0],vertices[:,1],'.')
     for ii in range(len(lines)):
-        plt.plot(vertices[lines[0]],vertices[lines[1]],'b-')
+        plt.plot([vertices[lines[ii,0],0],vertices[lines[ii,1],0]],[vertices[lines[ii,0],1],vertices[lines[ii,1],1]],'b-')
+    plt.plot(vertices[:,0],vertices[:,1],'r.')
+    
     
 def readPoly(filePath):
     fileContents = open(filePath)    
