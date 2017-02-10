@@ -23,7 +23,7 @@ import dxfgrabber as dxf
 import matplotlib.path as mplPath
 import warnings
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 
 
@@ -64,7 +64,7 @@ def dxfToPoly(filePath=None,elementSize = 2e-5) :
     entities = dxfFile.entities
     pLines,isClosed = findPlines(entities,elementSize)
     holes = findHoles(entities)
-    indexOfBoundary = findOuterBoundaryKey(pLines)
+    indexOfBoundary = findOuterBoundaryIndex(pLines)
     writePoly2d(pLines,isClosed,holes,indexOfBoundary,filePath)
     return 0
 
@@ -125,7 +125,7 @@ def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     
     return 0
     
-def findOuterBoundaryKey(pLines):
+def findOuterBoundaryIndex(pLines):
     '''
 	Function to automatically determine the external boundary in the PSLG. 
 	Essentially checks for any of the entities which encloses all other entities.
@@ -217,6 +217,13 @@ def findPlines(entities,elementSize):
     print(successStr)
     return (pLines,isClosedList)
 
+
+def splineToPline(entity):
+    degreeOfSpline = entity.degree
+    controlPoints = entity.control_points
+    knots = entity.knots
+    
+    
 def closeLine(vertices):
     '''
 	Function to close a polyline
@@ -283,3 +290,33 @@ def findHoles(entities):
         if entities[ii].dxftype == 'POINT':
             holes = np.vstack((holes,entities[ii].point[0:2]))
     return holes
+
+def plotPoly(filePath):
+    vertices,lines = readPoly(filePath)
+    plt.figure()
+    for ii in range(len(lines)):
+        plt.plot([vertices[lines[ii,0],0],vertices[lines[ii,1],0]],[vertices[lines[ii,0],1],vertices[lines[ii,1],1]],'b-')
+    plt.plot(vertices[:,0],vertices[:,1],'r.')
+    
+    
+def readPoly(filePath):
+    fileContents = open(filePath)    
+    fileLines=fileContents.readlines()
+    vertexInformation = fileLines[1].split()
+    numberOfVertices = int(vertexInformation[0])
+    lineInformation = fileLines[2+numberOfVertices].split()
+    numberOfLines = int(lineInformation[0])
+    vertices = np.zeros([numberOfVertices,2])
+    lines = np.zeros([numberOfLines,2])
+    for ii in range(numberOfVertices):
+        vertString = fileLines[ii+2].split()
+        vertices[ii,0] = float(vertString[1])
+        vertices[ii,1] = float(vertString[2])
+    
+    for ii in range(numberOfLines):
+        lineString = fileLines[ii+3+numberOfVertices].split()
+        lines[ii,0] = int(lineString[1])-1
+        lines[ii,1] = int(lineString[2])-1
+        fileContents.close()
+    lines = lines.astype(int)
+    return vertices,lines
