@@ -293,11 +293,16 @@ def findHoles(entities):
 
 def plotPoly(filePath):
     vertices,lines = readPoly(filePath)
-    plt.figure()
+    print('Plotting figure...')
+    fig=plt.figure()
+    ax = fig.add_subplot(111)
+    plotLines = []
     for ii in range(len(lines)):
-        plt.plot([vertices[lines[ii,0],0],vertices[lines[ii,1],0]],[vertices[lines[ii,0],1],vertices[lines[ii,1],1]],'b-')
-    plt.plot(vertices[:,0],vertices[:,1],'r.')
-    
+        plotLines.append(ax.plot([vertices[lines[ii,0],0],vertices[lines[ii,1],0]],[vertices[lines[ii,0],1],vertices[lines[ii,1],1]],'b-'))
+    ax.plot(vertices[:,0],vertices[:,1],'r.')
+    fig.canvas.mpl_connect('pick_event',onpick)
+    plt.show()
+    return fig,ax
     
 def readPoly(filePath):
     fileContents = open(filePath)    
@@ -320,3 +325,13 @@ def readPoly(filePath):
         fileContents.close()
     lines = lines.astype(int)
     return vertices,lines
+
+
+
+def onpick(event):
+    thisline = event.artist
+    xdata = thisline.get_xdata()
+    ydata = thisline.get_ydata()
+    ind = event.ind
+    points = tuple(zip(xdata[ind], ydata[ind]))
+    print('onpick points:', points)
