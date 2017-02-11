@@ -68,6 +68,8 @@ def dxfToPoly(filePath=None,elementSize = 2e-5) :
     writePoly2d(pLines,isClosed,holes,indexOfBoundary,filePath)
     return 0
 
+
+
 def writePoly2d(pslg,isClosed, holes, boundaryKey, filePath):
     '''
 	Function to write information loaded from the .dxf file to a .poly file.

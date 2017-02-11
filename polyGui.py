@@ -44,8 +44,8 @@ class polyGui:
             self.plotLines.append(self.ax.plot( [self.vertices[self.lines[ii,0],0],self.vertices[self.lines[ii,1],0]], \
                                                 [self.vertices[self.lines[ii,0],1],self.vertices[self.lines[ii,1],1]], \
                                                 'b-', \
-                                                picker=5 \
-                                                ))
+                                                picker=5, \
+                                                )[0])
         self.ax.plot(self.vertices[:,0],self.vertices[:,1],'r.')
         plt.show()
         self.connect()
@@ -56,6 +56,8 @@ class polyGui:
         
     def onClick(self,event):
         pdb.set_trace()
+        
+        #######################USE self.plotLines.index(event.artist) to ID lines
         print('testing')
         thisline = event.artist
         xdata = thisline.get_xdata()
