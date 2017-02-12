@@ -16,8 +16,6 @@ class polyGui:
         self.plotPoly()
         
     
-    
-    
     def readPoly(self,filePath):
         fileContents = open(filePath)    
         fileLines=fileContents.readlines()
