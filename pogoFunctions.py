@@ -18,11 +18,13 @@ rotate2D
 gaussianAngledBeam
 tukeyWindow
 cartesianCombinations
+gaussianBeamProfile
 
 
 10/10/2016 Version 1.0
 """
 import numpy as np
+import matplotlib.pyplot as plt
 
 def loadNodeFile(fileName):
     '''
@@ -92,7 +94,12 @@ def gaussTone(t, tau, f0):
     
     return np.exp(-1.*np.power((t-tau)/(1/(1.0*f0)), 2)) * np.sin(2*np.pi*f0*(t-tau))
 
-def findNodesInTransducer(nodes, transducerCentre, xWidth, yWidth=None, angle=None, shape='rectangular'):
+def findNodesInTransducer(nodes, 
+                          transducerCentre, 
+                          xWidth, 
+                          yWidth=None, 
+                          angle=None, 
+                          shape='rectangular'):
     '''
     Function to find the nodes in a mesh that are on the surface of a
     transducer. It is assumed that the transducer is flat on a surface with
@@ -237,7 +244,14 @@ def rotate2D(position, angle, centreOfRotation):
     
     return np.array([xP, yP])
         
-def gaussianAngledBeam(transducerNodes, verticalAngle, dt, nt, velocity, f0, xAngle=None, centre=None):
+def gaussianAngledBeam(transducerNodes, 
+                       verticalAngle, 
+                       dt, 
+                       nt, 
+                       velocity, 
+                       f0, 
+                       xAngle=None,
+                       centre=None):
     '''
     Function to generate the loads needed for each node in a transducer
     surface to create an angled beam in the specimen. The pulse is a 5 cycle
@@ -408,3 +422,101 @@ def cartesianCombinations(arrays, out=None):
         for j in xrange(1, arrays[0].size):
             out[j*m:(j+1)*m,1:] = out[0:m,1:]
     return out
+
+def gaussianBeamProfile(nodes, 
+                        transducerCentre, 
+                        sigmaX, 
+                        sigmaY,
+                        sigmaZ=None,
+                        amplitude=1,
+                        plotting=False):
+    '''
+    Function to calculate the amplitudes needed to generate a Gaussian beam
+    profile across the foot print of a transducer. It can calculate both 1
+    and 2 dimensional Gaussian functions.
+    
+    Parameters
+    -----------
+    nodes : array, float
+        The coordinates of the nodes in the transducer passed in an array of
+        shape (nDims, nNodes). It must have 3 >= nDims >= 2 for a 1 
+        dimensional Gaussian profile and nDims = 3 for a 2 dimensional
+        profile.
+        
+    transducerCentre : float
+        The coordinates of the centre of the transducer. This acts as the
+        mean of the distribution.
+        
+    sigmaX : float
+        The standard deviation of the profile in the x-dimension, defined as
+        the first coordinate in nodes. Can be None if sigmaY is specified in
+        which case it is a 1 dimension distribution in the y axis (second 
+        coordinate) or sigmaZ is specified in which case it is a 1 dimension
+        distribution in the z axis (third coordinate).
+        
+    sigmaY : float
+        The standard deviation of the profile in the y-dimension, defined as
+        the second coordinate in nodes. See documentation for sigmaX for more
+        details.
+        
+    sigmaZ : float, optional
+        The standard deviation of the profile in the z-dimension, defined as
+        the thrid coordinate in nodes. See documentation for sigmaX for more
+        details. Default is None in which case it is not used.
+    
+    amplitude : float
+        The maximum amplitude of the Gaussian function.
+        
+    plotting : boolean
+        Whether to plot the generated distribution or not. This is a designed
+        as a convenient way of quickly visualising the beam profile. It works
+        for 1 dimension and 2 dimension Gaussian functions.
+    
+    Returns
+    --------
+    amplitudes : array
+        The amplitudes needed for each node in nodes, in the same order, to
+        create the Gaussian profile.
+    '''
+    if np.shape(nodes)[0] not in [2,3]:
+        raise ValueError('nodes must have 2 or 3 coordinates')
+    
+    if np.shape(nodes)[0] != len(transducerCentre):
+        raise ValueError('transducerCentre must have the same number of \
+        dimensions as nodes.')
+    if sigmaX == None and sigmaY == None and sigmaZ == None:
+        raise ValueError('One or two of sigmaX, sigmaY and sigmaZ must be \
+        specified')
+        
+    if sigmaX != None and sigmaY != None and sigmaZ != None:
+        raise ValueError('A maximum of two of sigmaX, sigmaY and sigmaZ can \
+        be specified')
+
+    nNodes = len(nodes[0])
+        
+    vals = [sigmaX, sigmaY, sigmaZ]
+    axes = [[pos,val] for pos, val in enumerate(vals) if val != None]
+
+    amplitudes = np.zeros(nNodes)
+    
+    if len(axes) == 1:
+        amplitudes = amplitude*np.exp(-1*np.power((nodes[axes[0][0]]-transducerCentre[axes[0][0]])/axes[0][1], 2))
+        
+    elif len(axes) == 2:
+        amplitudes = amplitude*np.exp(-1*(np.power((nodes[axes[0][0]]-transducerCentre[axes[0][0]])/axes[0][1], 2) \
+                    + np.power((nodes[axes[1][0]]-transducerCentre[axes[1][0]])/axes[1][1], 2)))
+    
+    if plotting == True:
+        plt.figure()
+        if len(axes) == 1:
+            plt.plot(nodes[axes[0][0]], amplitudes, 'o', ms=4)
+            plt.xlabel('{} coordinate'.format(axes[0][0]))
+            plt.ylabel('Amplitude (Arbitrary Units)')
+            
+        elif len(axes) == 2:
+            plt.scatter(nodes[axes[0][0]], nodes[axes[1][0]], c=amplitudes)
+            plt.xlabel('{} coordinate'.format(axes[0][0]))
+            plt.ylabel('{} coordinate'.format(axes[1][0]))
+            plt.colorbar(label='Amplitude (Arbitrary Units)')
+    
+    return amplitudes

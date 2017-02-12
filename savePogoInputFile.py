@@ -453,7 +453,7 @@ def writePogoInputFile(fileName,
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
             
             ##### this needs fixing - need to generate an array if only a float is passed.
-            if type(signals[c1][1]) is float:
+            if type(signals[c1][1]) is float or type(signals[c1][1]) is np.float64:
                 if totalForce == True:
                     if sigType == 1:
                         raise ValueError('totalForce not supported for displacement load.')
