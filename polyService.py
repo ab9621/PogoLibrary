@@ -27,7 +27,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
-    
+from matplotlib.collections import LineCollection    
 def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList) for vertexList in pLines)
@@ -264,17 +264,25 @@ def findHoles(entities):
     return holes
 
 
-def plotPoly(polyInstance,filePath=None):
-    print('Plotting figure... (this might take a while for large graphs)')
-    pdb.set_trace()
-    fig=plt.figure()
+def plotPoly(polyInstance,filePath=None):    
+    fig = plt.figure()
     ax = fig.add_subplot(111)
-    plotLines = []
+    ax.plot(polyInstance.vertices[:,1],polyInstance.vertices[:,2],'r.','MarkerSize',1)
+    testList = []
     for ii in range(polyInstance.numberOfEdges):
-        plotLines.append(ax.plot([polyInstance.vertices[polyInstance.edges[ii,1]-1,1],polyInstance.vertices[polyInstance.edges[ii,2]-1,1]], \
-                                 [polyInstance.vertices[polyInstance.edges[ii,1]-1,2],polyInstance.vertices[polyInstance.edges[ii,2]-1,2]], \
-                                 'b-'))
-    ax.plot(polyInstance.vertices[:,1],polyInstance.vertices[:,2],'r.')
+        x0=polyInstance.vertices[polyInstance.edges[ii,1]-1,1]
+        y0=polyInstance.vertices[polyInstance.edges[ii,1]-1,2]
+        x1=polyInstance.vertices[polyInstance.edges[ii,2]-1,1]
+        y1=polyInstance.vertices[polyInstance.edges[ii,2]-1,2]
+        line = ((x0,y0),(x1,y1))
+        testList.append(line)
+        
+        
+    #lineData=LineCollection((((0,1),(1,1)),((0,0),(1,1))))
+    lineData = LineCollection(tuple(testList))
+    pdb.set_trace()
+    ax.add_collection(lineData)
+    
     plt.axis('equal')
 #        fig.canvas.mpl_connect('pick_event',onpick)
     plt.show()

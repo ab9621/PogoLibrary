@@ -6,61 +6,48 @@ Created on Fri Feb 10 16:45:00 2017
 """
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.collections import LineCollection
 import pdb
 class polyGui:
-    def __init__(self,polyFile):
-        self.readPoly(polyFile)
+    def __init__(self,polyInstance):
+        self.normalSelectedColor = np.array([[0, 0, 1, 1.0], [1, 0, 0, 1.0]])
+        self.plotPoly(polyInstance)
+        
+    def plotPoly(self,polyInstance):
+        lineList = []    
+        for ii in range(polyInstance.numberOfEdges):
+            x0=polyInstance.vertices[polyInstance.edges[ii,1]-1,1]
+            y0=polyInstance.vertices[polyInstance.edges[ii,1]-1,2]
+            x1=polyInstance.vertices[polyInstance.edges[ii,2]-1,1]
+            y1=polyInstance.vertices[polyInstance.edges[ii,2]-1,2]
+            line = ((x0,y0),(x1,y1))
+            lineList.append(line)
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111)
-        self.plotLines = []
-        self.plotPoly()
-        
-    
-    def readPoly(self,filePath):
-        fileContents = open(filePath)    
-        fileLines=fileContents.readlines()
-        vertexInformation = fileLines[1].split()
-        numberOfVertices = int(vertexInformation[0])
-        lineInformation = fileLines[2+numberOfVertices].split()
-        numberOfLines = int(lineInformation[0])
-        self.vertices = np.zeros([numberOfVertices,2])
-        self.lines = np.zeros([numberOfLines,2])
-        for ii in range(numberOfVertices):
-            vertString = fileLines[ii+2].split()
-            self.vertices[ii,0] = float(vertString[1])
-            self.vertices[ii,1] = float(vertString[2])
-        
-        for ii in range(numberOfLines):
-            lineString = fileLines[ii+3+numberOfVertices].split()
-            self.lines[ii,0] = int(lineString[1])-1
-            self.lines[ii,1] = int(lineString[2])-1
-        fileContents.close()
-        self.lines = self.lines.astype(int)
-        
-    def plotPoly(self):
-        for ii in range(len(self.lines)):
-            self.plotLines.append(self.ax.plot( [self.vertices[self.lines[ii,0],0],self.vertices[self.lines[ii,1],0]], \
-                                                [self.vertices[self.lines[ii,0],1],self.vertices[self.lines[ii,1],1]], \
-                                                'b-', \
-                                                picker=5, \
-                                                )[0])
-        self.ax.plot(self.vertices[:,0],self.vertices[:,1],'r.')
-        plt.show()
+        self.lineData = LineCollection(tuple(lineList),pickradius=5)
+        self.lineData.set_picker(True)
+        self.ax.add_collection(self.lineData)
+        self.ax.set_xbound(lower=-.02,upper=.02)
+        self.ax.set_ybound(lower=-.02,upper=.02)
+        self.selected = np.zeros(len(self.lineData.get_segments())).astype(int)
+        #self.ax.plot(polyInstance.vertices[:,1],polyInstance.vertices[:,2],'r.')
         self.connect()
-        
+        plt.show()
     
     def connect(self):
-        self.fig.canvas.mpl_connect('pick_event',self.onClick)
+        self.picker = self.fig.canvas.mpl_connect('pick_event',self.onClick)
         
     def onClick(self,event):
-        pdb.set_trace()
-        
-        #######################USE self.plotLines.index(event.artist) to ID lines
         print('testing')
-        thisline = event.artist
-        xdata = thisline.get_xdata()
-        ydata = thisline.get_ydata()
-        ind = event.ind
-        self.points = tuple(zip(xdata[ind], ydata[ind]))
-        print('onpick points:', self.points)
-        
+        ind = event.ind[0]
+        self.selected[ind] = 1 - self.selected[ind]
+        self.lineData.set_color(self.normalSelectedColor[self.selected])
+        self.fig.canvas.draw_idle()
+#        thisline = event.artist
+#        pdb.set_trace()
+#        xdata = thisline.get_xdata()
+#        ydata = thisline.get_ydata()
+#        ind = event.ind
+#        self.points = tuple(zip(xdata[ind], ydata[ind]))
+#        print('onpick points:',self.points)
+#        
