@@ -7,9 +7,10 @@ Created on Sun Feb 12 10:12:28 2017
 import numpy as np
 import dxfgrabber as dxf
 import polyService as pS
+import pdb
 class poly:
     vertices = np.empty([0,4])
-    holes = np.empty([0,2])
+    holes = np.empty([0,3])
     edges = np.empty([0,3]).astype(int)
     numberOfVertices = 0
     numberOfEdges = 0
@@ -98,7 +99,7 @@ class poly:
         self._setNumberOfEdges()
         
     def addHoles(self,inputHoles):
-        newHoles = np.zeros([len(self.holes)+len(inputHoles),2])
+        newHoles = np.zeros([len(self.holes)+len(inputHoles),3])
         newHoles[:-len(inputHoles),:] = self.holes
         newHoles[-len(inputHoles):,:] = inputHoles
         self.holes = newHoles
@@ -106,7 +107,7 @@ class poly:
     
     def emptyPoly(self):
         self.nodes = np.empty([0,4])
-        self.holes = np.empty([0,2])
+        self.holes = np.empty([0,3])
         self.edges = np.empty([0,3])
         self.numberOfVertices = 0
         self.numberOfEdges = 0

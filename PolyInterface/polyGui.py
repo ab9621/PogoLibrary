@@ -7,13 +7,14 @@ Created on Fri Feb 10 16:45:00 2017
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
+from matplotlib.widgets import Lasso
 import pdb
 class polyGui:
-    def __init__(self,polyInstance):
+    def __init__(self,polyInstance,**kwargs):
         self.normalSelectedColor = np.array([[0, 0, 1, 1.0], [1, 0, 0, 1.0]])
-        self.plotPoly(polyInstance)
+        self.plotPoly(polyInstance,**kwargs)
         
-    def plotPoly(self,polyInstance):
+    def plotPoly(self,polyInstance,**kwargs):
         lineList = []    
         for ii in range(polyInstance.numberOfEdges):
             x0=polyInstance.vertices[polyInstance.edges[ii,1]-1,1]
@@ -23,26 +24,31 @@ class polyGui:
             line = ((x0,y0),(x1,y1))
             lineList.append(line)
         self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111)
+        self.ax = self.fig.add_subplot(111,**kwargs)
         self.lineData = LineCollection(tuple(lineList),pickradius=5)
         self.lineData.set_picker(True)
         self.ax.add_collection(self.lineData)
-        self.ax.set_xbound(lower=-.02,upper=.02)
-        self.ax.set_ybound(lower=-.02,upper=.02)
+        plt.autoscale(tight=True)
+        plt.axis('equal')
         self.selected = np.zeros(len(self.lineData.get_segments())).astype(int)
         #self.ax.plot(polyInstance.vertices[:,1],polyInstance.vertices[:,2],'r.')
-        self.connect()
+        #self.connect()
         plt.show()
     
-    def connect(self):
-        self.picker = self.fig.canvas.mpl_connect('pick_event',self.onClick)
-        
-    def onClick(self,event):
-        print('testing')
-        ind = event.ind[0]
-        self.selected[ind] = 1 - self.selected[ind]
-        self.lineData.set_color(self.normalSelectedColor[self.selected])
-        self.fig.canvas.draw_idle()
+#    def connect(self):
+#        self.picker = self.fig.canvas.mpl_connect('pick_event',self.onClick)
+#    
+#    def callback(self,verts)        
+#    def onClick(self,event):
+#        if event.inaxes is None:
+#            return
+#        self.lasso = Lasso(event.inaxes,event.xdata,event.ydata,self.callback)
+#        self.fig.widgetlock(self.lasso)
+#        print('testing')
+#        ind = event.ind[0]
+#        self.selected[ind] = 1 - self.selected[ind]
+#        self.lineData.set_color(self.normalSelectedColor[self.selected])
+#        self.fig.canvas.draw_idle()
 #        thisline = event.artist
 #        pdb.set_trace()
 #        xdata = thisline.get_xdata()
@@ -51,3 +57,15 @@ class polyGui:
 #        self.points = tuple(zip(xdata[ind], ydata[ind]))
 #        print('onpick points:',self.points)
 #        
+#
+#class Line(object):
+#    colorin = mcolors.to_rgba("red")
+#    colorout = mcolors.to_rgba("blue")
+#
+#    def __init__(self, x, y, include=False):
+#        self.x = x
+#        self.y = y
+#        if include:
+#            self.color = self.colorin
+#        else:
+#            self.color = self.colorout
