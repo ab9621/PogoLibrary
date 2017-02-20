@@ -520,3 +520,32 @@ def gaussianBeamProfile(nodes,
             plt.colorbar(label='Amplitude (Arbitrary Units)')
     
     return amplitudes
+    
+def waveVelocity(E, nu, rho):
+    '''
+    Convenience function to calculate the longitudinal and shear velocities
+    given some material properties. All units are SI.
+    
+    Parameters
+    ----------
+    E : float
+        The Young's modulus of the material.
+        
+    nu : float
+        The Poisson's ratio of the material.
+        
+    rho : float
+        The density of the material.
+        
+    Returns
+    -------
+    cp : float
+        The longitudinal wave velocity.
+        
+    cs : float
+        The shear wave velocity.
+    '''
+    cp = np.sqrt((E*(1.-nu))/(rho*(1.+nu)*(1-2.*nu)))
+    cs = np.sqrt(E/(2.*(1+nu)*rho))
+    return cp, cs
+   
