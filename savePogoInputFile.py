@@ -386,6 +386,8 @@ def writePogoInputFile(fileName,
             
         else:
             nOr = len(orientations)
+            nOr = np.array([nOr, ], dtype='int32')
+            nOr.tofile(f)
             
             for c1 in range(0, nOr):
                 paramType = np.array([orientations[c1][0],], dtype='int32')
@@ -400,19 +402,20 @@ def writePogoInputFile(fileName,
             nFixDof = 0
             
         else:
-            nFixDof = len(boundaryConditions)/2
+            nSets = len(boundaryConditions)/2
+            nFixDof = sum([len(boundaryConditions[c1*2]) for c1 in range(nSets)])
             
         if nFixDof == 0:
             zero.tofile(f)
         
         else:
             nFixDofA = np.array([nFixDof,], dtype='int32')
-            nFixDofA.tofile(f)
+            print nFixDofA
             
-            for c1 in range(0, nFixDof):
+            for c1 in range(0, nSets):
                 dof = (boundaryConditions[c1*2]-1)*4 + boundaryConditions[c1*2+1]-1
                 dof = np.array([dof,], dtype='int32')
-                
+                dof.tofile(f)
         ##### Input signals
         nInputSignals = len(signals)
         nInputSignalsA = np.array([nInputSignals,], dtype='int32')
@@ -453,7 +456,7 @@ def writePogoInputFile(fileName,
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
             
             ##### this needs fixing - need to generate an array if only a float is passed.
-            if type(signals[c1][1]) is float or type(signals[c1][1]) is np.float64:
+            if type(signals[c1][1]) is float:
                 if totalForce == True:
                     if sigType == 1:
                         raise ValueError('totalForce not supported for displacement load.')
@@ -489,7 +492,6 @@ def writePogoInputFile(fileName,
             print '\nWarning : No history measurements requested.\n'
             zero.tofile(f)
             zero.tofile(f)
-            zero.tofile(f)
         
         else:
             hist = np.array([])
@@ -520,11 +522,10 @@ def writePogoInputFile(fileName,
         else:
             nFieldStore = np.array([len(fieldStoreIncrements),], dtype='int32')
             nFieldStore.tofile(f)
-            
             if np.max(fieldStoreIncrements) > nt or np.min(fieldStoreIncrements) < 1:
                 raise ValueError('fieldStoreIncrements out of range [1, nt].')
                 
-            fieldStoreIncrements = np.array([fieldStoreIncrements,], dtype='int32')
+            fieldStoreIncrements = np.array([fieldStoreIncrements-1,], dtype='int32')
             fieldStoreIncrements.tofile(f)
         
         print '\nPogo input file written.\n'
