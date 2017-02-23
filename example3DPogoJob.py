@@ -193,7 +193,7 @@ transducerNodes = pF.findNodesInTransducer(nodes,
 
 timeBase = np.linspace(0, nTimeSteps-1, nTimeSteps) * modelTimeStep
 
-inputSignal = pF.gauss_tone(timeBase, 3.0/f0, f0) #centre of pulse at 2.5/f0
+inputSignal = pF.gaussTone(timeBase, 3.0/f0, f0) #centre of pulse at 2.5/f0
 # but allow a bit of spare room at the start.
 
 signalAmplitude = 10.0
