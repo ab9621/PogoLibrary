@@ -345,10 +345,14 @@ def _isConnected(pointsFromLine1, pointsFromLine2):
         
 def findHoles(entities):
     numberOfEntities = len(entities)
-    holes= np.zeros([0,2])
+    holeCoords = np.zeros([0,2])
     for ii in range(numberOfEntities):
         if entities[ii].dxftype == 'POINT':
-            holes = np.vstack((holes,entities[ii].point[0:2]))
+            holeCoords = np.vstack((holeCoords,entities[ii].point[0:2]))
+    
+    holes = np.zeros([len(holeCoords),3])
+    holes[:,1:] = holeCoords
+    holes[:,0] = np.arange(len(holeCoords))    
     return holes
 
 
@@ -379,7 +383,6 @@ def plotPoly(polyInstance,filePath=None):
 def readPoly(filePath):
     fileContents = open(filePath,'r')    
     fileLines=fileContents.readlines()
-    fileContents.close()
     vertexInformation = fileLines[1].split()
     numberOfVertices = int(vertexInformation[0])
     edgeInformation = fileLines[2+numberOfVertices].split()
@@ -390,7 +393,7 @@ def readPoly(filePath):
     vertices = _readVerticesFromFile(numberOfVertices,fileLines)    
     edges = _readEdgesFromFile(numberOfVertices,numberOfEdges,fileLines)    
     holes = _readHolesFromFile(numberOfVertices,numberOfEdges,numberOfHoles,fileLines)
-    
+    fileContents.close()
     return vertices,edges,holes
 
 def _readVerticesFromFile(numberOfVertices,fileLines):
@@ -408,8 +411,9 @@ def _readVerticesFromFile(numberOfVertices,fileLines):
 
 def _readEdgesFromFile(numberOfVertices,numberOfEdges,fileLines):
     edges = np.zeros([numberOfEdges,3])
+    
     for ii in range(numberOfEdges):
-        edgeString = fileLines[ii+4+numberOfVertices].split()
+        edgeString = fileLines[ii+3+numberOfVertices].split()
         edges[ii,0] = int(edgeString[0])
         edges[ii,1] = int(edgeString[1])
         edges[ii,2] = int(edgeString[2])
@@ -417,12 +421,13 @@ def _readEdgesFromFile(numberOfVertices,numberOfEdges,fileLines):
     return edges
 
 def _readHolesFromFile(numberOfVertices,numberOfEdges,numberOfHoles,fileLines):
+    #pdb.set_trace()
     holes = np.zeros([numberOfHoles,3])
     for ii in range(numberOfHoles):
-        holeString = fileLines[ii+3+numberOfVertices+numberOfEdges].split()
-        holes[ii,0] = int(holeString[0])
-        holes[ii,1] = int(holeString[1])
-        holes[ii,2] = int(holeString[2])
+        holeString = fileLines[ii+4+numberOfVertices+numberOfEdges].split()
+        holes[ii,0] = int(ii+1)
+        holes[ii,1] = holeString[0]
+        holes[ii,2] = holeString[1]
     return holes
 
 

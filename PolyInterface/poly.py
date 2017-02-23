@@ -12,7 +12,7 @@ class poly:
     vertices = np.empty([0,2])
     vertexIDs = np.empty([0,1])
     boundaryFlags = np.empty([0,1]).astype(int)
-    holes = np.empty([0,2])
+    holes = np.empty([0,3])
     holeIDs = np.empty([0,1])
     edges = np.empty([0,2]).astype(int)
     edgeIDs = np.empty([0,1])
@@ -119,7 +119,7 @@ class poly:
         self._setEdgeIDs()
         
     def addHoles(self,inputHoles):
-        newHoles = np.zeros([len(self.holes)+len(inputHoles),2])
+        newHoles = np.zeros([len(self.holes)+len(inputHoles),3])
         newHoles[:-len(inputHoles),:] = self.holes
         newHoles[-len(inputHoles):,:] = inputHoles
         self.holes = newHoles
@@ -128,7 +128,7 @@ class poly:
     
     def emptyPoly(self):
         self.vertices = np.empty([0,2])
-        self.holes = np.empty([0,2])
+        self.holes = np.empty([0,3])
         self.edges = np.empty([0,2])
         self.numberOfVertices = 0
         self.numberOfEdges = 0
