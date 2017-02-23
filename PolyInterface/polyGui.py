@@ -16,10 +16,10 @@ class polyGui:
     def plotPoly(self,polyInstance):
         lineList = []    
         for ii in range(polyInstance.numberOfEdges):
-            x0=polyInstance.vertices[polyInstance.edges[ii,1]-1,1]
-            y0=polyInstance.vertices[polyInstance.edges[ii,1]-1,2]
-            x1=polyInstance.vertices[polyInstance.edges[ii,2]-1,1]
-            y1=polyInstance.vertices[polyInstance.edges[ii,2]-1,2]
+            x0=polyInstance.vertices[polyInstance.edges[ii,0]-1,0]
+            y0=polyInstance.vertices[polyInstance.edges[ii,0]-1,1]
+            x1=polyInstance.vertices[polyInstance.edges[ii,1]-1,0]
+            y1=polyInstance.vertices[polyInstance.edges[ii,1]-1,1]
             line = ((x0,y0),(x1,y1))
             lineList.append(line)
         self.fig = plt.figure()

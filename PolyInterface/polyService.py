@@ -27,30 +27,34 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
-from matplotlib.collections import LineCollection    
+from matplotlib.collections import LineCollection 
+   
 def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList) for vertexList in pLines)
-    vertices = np.zeros([numberOfVertices,4])
+    vertices = np.zeros([numberOfVertices,2])
+    boundaryFlags = np.zeros([numberOfVertices,2])
     edges = []
     for ii in range(len(pLines)):            
         for kk in range(len(pLines[ii].vertices)):
             if ii==indexOfBoundary:
-                vertices[jj-1,:] = [jj,pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1],1]
+                vertices[jj-1,:] = [pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1]]
+                boundaryFlags[jj-1] = 1
             else:
-                vertices[jj-1,:] = [jj,pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1],0]
+                vertices[jj-1,:] = [pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1]]
+                boundaryFlags[jj-1] = 0
             jj+=1
     jj = 1
     for ii in range(len(pLines)):
         jStart = jj
         for kk in range(len(pLines[ii])-1):
-            edges.append([jj,jj,jj+1])
+            edges.append([jj,jj+1])
             jj+=1
         if isClosed[ii]:
-            edges.append([jj,jj,jStart])
+            edges.append([jj,jStart])
             jj+=1
     edges = np.array(edges)
-    return vertices,edges
+    return vertices,boundaryFlags.astype(int),edges
 
 def writePoly2d(polyInstance,filePath):
     '''
@@ -78,19 +82,25 @@ def writePoly2d(polyInstance,filePath):
     with open(filePath,'w') as f:
         f.write('<# of vertices> <dimension (must be 2)> <# of attributes> <# of boundary markers (0 or 1)>\n')
         f.write("{} 2 ".format(polyInstance.numberOfVertices) + "0 {} \n".format(polyInstance.numberOfBoundaryVertices))
-        for ii in range(polyInstance.numberOfEdges):
+        for ii in range(polyInstance.numberOfVertices):
+            polyInstance.vertexIDs[ii].tofile(f," ")
+            f.write(" ")
             polyInstance.vertices[ii,:].tofile(f," ")
+            #polyInstance.boundaryFlags[ii].tofile(f," ",format = "%d")
             f.write("\n")
-        
         
         f.write("{} 0\n".format(polyInstance.numberOfEdges))
         for ii in range(polyInstance.numberOfEdges):
+            polyInstance.edgeIDs[ii].tofile(f," ")
+            f.write(" ")
             polyInstance.edges[ii,:].tofile(f," ")
             f.write("\n")
         
         f.write("{}\n".format(polyInstance.numberOfHoles))
         
         for ii in range(polyInstance.numberOfHoles):
+            polyInstance.holeIDs[ii].tofile(f," ")
+            f.write(" ")
             polyInstance.holes[ii,:].tofile(f," ")
             f.write("\n")
             
@@ -121,7 +131,7 @@ def findOuterBoundaryIndex(pLines):
     errStr = "Must have one entity (LWPOLYLINE,CIRCLE) defining the outer boundary."
     raise ValueError(errStr)
     
-def findPlines(entities,elementSize):
+def findPlines(entities,elementSize,precision = False):
     '''
 	Function to determine the PSLG entites from the .dxf entities. 
 	Reads LWPOLYLINE and LINE directly, and converts CIRCLES and 
@@ -143,53 +153,65 @@ def findPlines(entities,elementSize):
 		pslg to close the entity, 'false' does not.		
     '''
     numberOfEntities = len(entities)
-    pslg = {}
     pLines = []
-    isClosed = {}
-    isClosedList = []
+    isClosed = []
     jj=0
     for ii in range(numberOfEntities):
         boundaryName = "{}".format(entities[ii].dxftype) + ' {}'.format(jj)
         if entities[ii].dxftype == 'LWPOLYLINE':
             if entities[ii].is_closed:
-                isClosed[boundaryName] = True
                 isClosedList.append(True)
             else:
-                isClosed[boundaryName] = False
                 isClosedList.append(True)
             vertices = np.asarray(entities[ii].points)
-                
-            pslg[boundaryName] = mplPath.Path(vertices)
+            
+            vertices = setPrecision(vertices,elementSize,precision)
             pLines.append(mplPath.Path(vertices))
             jj = jj+1
         elif entities[ii].dxftype == 'CIRCLE' or entities[ii].dxftype == 'ARC':
-            pslg[boundaryName]=convertToPolyline(entities[ii],elementSize)
-            pLines.append(convertToPolyline(entities[ii],elementSize))
+            pdb.set_trace()
+            pLine = convertToPolyline(entities[ii],elementSize)
+            pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)
+            pLines.append(pLine)
             if entities[ii].dxftype == 'CIRCLE':
-                isClosed[boundaryName] = True
-                isClosedList.append(True)
+                isClosed.append(True)
             else:
-                isClosed[boundaryName] = False
-                isClosedList.append(True)
+                isClosed.append(False)
             jj = jj+1
+            
+            
         elif entities[ii].dxftype == 'LINE':
-            pslg[boundaryName] = mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
+            pLine = mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
                                                    [entities[ii].end[0]  ,entities[ii].end[1] ]]))
-            pLines.append(mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
-                                                   [entities[ii].end[0]  ,entities[ii].end[1] ]])))
-            isClosed[boundaryName] = False
-            isClosedList.append(False)
+            pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)                                       
+            pLines.append(pLine)
+            isClosed.append(False)
+            
             jj = jj+1
         elif entities[ii].dxftype == 'POINT':
             continue
         else:
             warnStr="Currently only LWPOLYLINE,CIRCLE,ARC and LINE supported for boundary definition. Found {}".format(entities[ii].dxftype)
             warnings.warn(warnStr)
+        
     successStr = "Found {} convertible entities.".format(jj)
     print(successStr)
-    return (pLines,isClosedList)
+    return (pLines,isClosed)
 
-
+def getExponents(floatingPointNumbers):
+    return np.round(np.log10(floatingPointNumbers)).astype(int)
+    
+def setPrecision(vertices,elementSize,precision):
+    if not precision:
+        return vertices
+    exponent = getExponents(elementSize)
+    return np.round(vertices*np.power(10,-exponent),precision)*np.power(10.,exponent)
+    #return np.ceil((vertices/precision).astype(int)) * precision
+        
+#def joinPlines(pLines):
+    
+    
+    
 #    def splineToPline(entity):
 #        degreeOfSpline = entity.degree
 #        controlPoints = entity.control_points
@@ -236,9 +258,11 @@ def convertToPolyline(entity,elementSize)    :
     if entity.dxftype == 'CIRCLE':
         thetaBegin = 0
         thetaEnd = 2*np.pi
+        isArc=False
     elif entity.dxftype == 'ARC':
         thetaBegin = entity.start_angle * np.pi / 180
         thetaEnd = entity.end_angle * np.pi / 180
+        isArc=True
     else:
         errStr = 'Error: Invalid entity passed to convertToPolyline.'
         raise ValueError(errStr)
@@ -246,15 +270,79 @@ def convertToPolyline(entity,elementSize)    :
     angleRange = thetaEnd - thetaBegin            
     r = entity.radius
     dTheta = np.arcsin(elementSize/(2 * r)) * 2
-    nTheta = int(angleRange/dTheta)
-    polyline = np.zeros([nTheta-1,2])
+    nTheta = int(np.ceil(angleRange/dTheta))
+    
     theta = np.linspace(thetaBegin,thetaEnd,nTheta)
-    polyline[:,0] = r * np.cos(theta[:-1]) + entity.center[0]
-    polyline[:,1] = r * np.sin(theta[:-1]) + entity.center[1]
-        
+    if isArc:
+        polyline = np.zeros([nTheta,2])
+        polyline[:,0] = r * np.cos(theta) + entity.center[0]
+        polyline[:,1] = r * np.sin(theta) + entity.center[1]
+    else:
+        polyline = np.zeros([nTheta-1,2])
+        polyline[:,0] = r * np.cos(theta[:-1]) + entity.center[0]
+        polyline[:,1] = r * np.sin(theta[:-1]) + entity.center[1]        
     polyline = mplPath.Path(polyline)
     return polyline
+
+def joinPlines(pLines, isClosed):
+    for ii,pLine in enumerate(pLines):
+        line1EndPoints = np.array([[pLine.vertices[0,:]],[pLine.vertices[-1,:]]])
+        delList = []
+        for jj in range(ii+1,len(pLines)):
+            line2EndPoints = np.array([[pLines[jj].vertices[0,:]],[pLines[jj].vertices[-1,:]]])
+            connectionId = _isConnected(line1EndPoints,line2EndPoints)
+            if connectionId == 0:
+                continue
+            elif connectionId == 1:
+                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
+                isClosed[ii] = True
+                delList.append(jj)
+            elif connectionId == 2:
+                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-2::-1,:]))
+                isClosed[ii] = True
+                delList.append(jj)
+            elif connectionId == 3:
+                pLine.vertices = np.vstack((pLines[jj].vertices[-1:1:-1,:],pLine.vertices))
+                delList.append(jj)
+            elif connectionId == 4:
+                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-1:1:-1,:]))
+                delList.append(jj)
+            elif connectionId == 5:
+                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
+                delList.append(jj)
+            elif connectionId == 6:
+                pLine.vertices = np.vstack((pLines[jj].vertices[1:,:],pLine.vertices))
+                delList.append(jj)
+            delList = np.sort(delList)
+            for index in delList:
+                del pLines[index]
+                delList -= 1
+    return pLines,isClosed
+
+def _isConnected(pointsFromLine1, pointsFromLine2):
+    firstMatch = np.all(pointsFromLine1[0] == pointsFromLine2[0])
+    lastMatch = np.all(pointsFromLine1[1] == pointsFromLine2[1])
+    beginToEndMatch = np.all(pointsFromLine1[0] == pointsFromLine2[1])
+    endToBeginMatch = np.all(pointsFromLine1[1] == pointsFromLine2[0])
+    if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
+        return 0
+    elif firstMatch and lastMatch:
+        return 1
+    elif beginToEndMatch and endToBeginMatch:
+        return 2
+    elif firstMatch:
+        return 3
+    elif lastMatch:
+        return 4
+    elif beginToEndMatch:
+        return 5
+    elif endToBeginMatch:
+        return 6
+        
     
+    
+
+        
 def findHoles(entities):
     numberOfEntities = len(entities)
     holes= np.zeros([0,2])

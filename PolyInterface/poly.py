@@ -7,10 +7,15 @@ Created on Sun Feb 12 10:12:28 2017
 import numpy as np
 import dxfgrabber as dxf
 import polyService as pS
+import pdb
 class poly:
-    vertices = np.empty([0,4])
+    vertices = np.empty([0,2])
+    vertexIDs = np.empty([0,1])
+    boundaryFlags = np.empty([0,1]).astype(int)
     holes = np.empty([0,2])
-    edges = np.empty([0,3]).astype(int)
+    holeIDs = np.empty([0,1])
+    edges = np.empty([0,2]).astype(int)
+    edgeIDs = np.empty([0,1])
     numberOfVertices = 0
     numberOfEdges = 0
     numberOfHoles = 0
@@ -39,7 +44,7 @@ class poly:
         support combined boundaries for the external surface    
         
         ''' 
-        self.emptyPoly()       
+        self.emptyPoly()
         if not filePath:
             print('Creating empty graph...\n')
             return
@@ -50,10 +55,11 @@ class poly:
                 print('No such DXF file. Maybe you meant .poly? Creating empty graph.')
                 return
             entities = dxfFile.entities
-            pLines,isClosed = pS.findPlines(entities,elementSize)
+            pLines,isClosed = pS.findPlines(entities,elementSize,precision=5)
             holes = pS.findHoles(entities)
-            indexOfBoundary = pS.findOuterBoundaryIndex(pLines)
-            [vertices,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
+            #indexOfBoundary = pS.findOuterBoundaryIndex(pLines)
+            indexOfBoundary=-1
+            [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
             
             #self.writePoly2d(pLines,isClosed,self.holes,indexOfBoundary,filePath)
         elif filePath[-5:]=='.poly':
@@ -62,8 +68,7 @@ class poly:
             except IOError:
                 print('No such poly file. Maybe you meant .dxf? Creating empty graph.')
                 return
-        
-        self.addVertices(vertices)
+        self.addVertices(vertices,boundaryFlags)
         self.addEdges(edges)
         self.addHoles(holes)
         if writeFile:
@@ -82,20 +87,36 @@ class poly:
     def _setNumberOfBoundaryVertices(self):
         self.numberOfBoundaryVertices = np.count_nonzero(self.vertices[:,-1])
         
-    def addVertices(self,inputVertices):
-        newVertices = np.zeros([len(self.vertices)+len(inputVertices),4])
+    def _setVertexIDs(self):
+        self.vertexIDs=np.arange(len(self.vertices)).astype(int) + 1
+        
+    def _setEdgeIDs(self):
+        self.edgeIDs=np.arange(len(self.edges)).astype(int) + 1
+
+    def _setHoleIDs(self):
+        self.holeIDs=np.arange(len(self.holes)).astype(int) + 1                                
+                                 
+        
+    def addVertices(self,inputVertices,boundaryFlags):
+        newVertices = np.zeros([len(self.vertices)+len(inputVertices),2])
         newVertices[:-len(inputVertices),:] = self.vertices
         newVertices[-len(inputVertices):,:] = inputVertices
         self.vertices = newVertices
+        newBoundaryFlags = np.zeros([len(self.boundaryFlags)+len(inputVertices),2])
+        newBoundaryFlags[:-len(inputVertices),:] = self.boundaryFlags
+        newBoundaryFlags[-len(inputVertices):,:] = boundaryFlags
+        self.boundaryFlags = newBoundaryFlags
         self._setNumberOfVertices()
         self._setNumberOfBoundaryVertices()
+        self._setVertexIDs()
         
     def addEdges(self,inputEdges):
-        newEdges = np.zeros([len(self.edges)+len(inputEdges),3])
+        newEdges = np.zeros([len(self.edges)+len(inputEdges),2])
         newEdges[:-len(inputEdges),:] = self.edges
         newEdges[-len(inputEdges):,:] = inputEdges
         self.edges = newEdges.astype(int)
         self._setNumberOfEdges()
+        self._setEdgeIDs()
         
     def addHoles(self,inputHoles):
         newHoles = np.zeros([len(self.holes)+len(inputHoles),2])
@@ -103,11 +124,12 @@ class poly:
         newHoles[-len(inputHoles):,:] = inputHoles
         self.holes = newHoles
         self._setNumberOfHoles()
+        self._setHoleIDs()
     
     def emptyPoly(self):
-        self.nodes = np.empty([0,4])
+        self.vertices = np.empty([0,2])
         self.holes = np.empty([0,2])
-        self.edges = np.empty([0,3])
+        self.edges = np.empty([0,2])
         self.numberOfVertices = 0
         self.numberOfEdges = 0
         self.numberOfHoles = 0
