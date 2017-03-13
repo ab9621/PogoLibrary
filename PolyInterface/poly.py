@@ -17,7 +17,7 @@ class poly:
     edges = np.empty([0,2]).astype(int)
     edgeIDs = np.empty([0,1])
     numberOfVertices = 0
-    numberOfEdges = 0
+    numberOfEdges = 0    
     numberOfHoles = 0
     numberOfBoundaryVertices = 0
     def __init__(self,filePath = None,elementSize = 2e-5,writeFile=True):
@@ -58,11 +58,9 @@ class poly:
             pLines,isClosed = pS.findPlines(entities,elementSize,precision=5)
             pLines,isClosed = pS.joinPlines(pLines,isClosed)
             holes = pS.findHoles(entities)
-            #indexOfBoundary = pS.findOuterBoundaryIndex(pLines)
             indexOfBoundary=-1
             [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
             
-            #self.writePoly2d(pLines,isClosed,self.holes,indexOfBoundary,filePath)
         elif filePath[-5:]=='.poly':
             try:
                 vertices,edges,holes=pS.readPoly(filePath)
