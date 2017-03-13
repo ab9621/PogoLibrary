@@ -28,6 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 from matplotlib.collections import LineCollection 
+from itertools import compress
    
 def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
@@ -157,12 +158,11 @@ def findPlines(entities,elementSize,precision = False):
     isClosed = []
     jj=0
     for ii in range(numberOfEntities):
-        boundaryName = "{}".format(entities[ii].dxftype) + ' {}'.format(jj)
         if entities[ii].dxftype == 'LWPOLYLINE':
             if entities[ii].is_closed:
-                isClosedList.append(True)
+                isClosed.append(True)
             else:
-                isClosedList.append(True)
+                isClosed.append(False)
             vertices = np.asarray(entities[ii].points)
             
             vertices = setPrecision(vertices,elementSize,precision)
@@ -181,12 +181,17 @@ def findPlines(entities,elementSize,precision = False):
             
             
         elif entities[ii].dxftype == 'LINE':
-            pLine = mplPath.Path(np.asarray([[entities[ii].start[0],entities[ii].start[1]],
-                                                   [entities[ii].end[0]  ,entities[ii].end[1] ]]))
+            dy = entities[ii].end[1]-entities[ii].start[1]
+            dx = entities[ii].end[0]-entities[ii].start[0]
+            dr = np.sqrt(dy*dy + dx*dx)
+            numberOfSubVertices = int(np.ceil(dr/elementSize))
+            subVertices = np.zeros([numberOfSubVertices,2])
+            subVertices[:,0] = np.linspace(entities[ii].start[0],entities[ii].end[0],numberOfSubVertices)
+            subVertices[:,1] = np.linspace(entities[ii].start[1],entities[ii].end[1],numberOfSubVertices)
+            pLine = mplPath.Path(subVertices)
             pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)                                       
             pLines.append(pLine)
-            isClosed.append(False)
-            
+            isClosed.append(False)            
             jj = jj+1
         elif entities[ii].dxftype == 'POINT':
             continue
@@ -285,50 +290,80 @@ def convertToPolyline(entity,elementSize)    :
     return polyline
 
 def joinPlines(pLines, isClosed):
+    ignoreArray = np.zeros([len(pLines),1],dtype=bool)
+    #print ignoreArray
+    #pdb.set_trace()
     for ii,pLine in enumerate(pLines):
-        line1EndPoints = np.array([[pLine.vertices[0,:]],[pLine.vertices[-1,:]]])
-        delList = []
-        for jj in range(ii+1,len(pLines)):
-            line2EndPoints = np.array([[pLines[jj].vertices[0,:]],[pLines[jj].vertices[-1,:]]])
-            connectionId = _isConnected(line1EndPoints,line2EndPoints)
-            if connectionId == 0:
-                continue
-            elif connectionId == 1:
-                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
-                isClosed[ii] = True
-                delList.append(jj)
-            elif connectionId == 2:
-                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-2::-1,:]))
-                isClosed[ii] = True
-                delList.append(jj)
-            elif connectionId == 3:
-                pLine.vertices = np.vstack((pLines[jj].vertices[-1:1:-1,:],pLine.vertices))
-                delList.append(jj)
-            elif connectionId == 4:
-                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-1:1:-1,:]))
-                delList.append(jj)
-            elif connectionId == 5:
-                pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
-                delList.append(jj)
-            elif connectionId == 6:
-                pLine.vertices = np.vstack((pLines[jj].vertices[1:,:],pLine.vertices))
-                delList.append(jj)
-            delList = np.sort(delList)
-            for index in delList:
-                del pLines[index]
-                delList -= 1
+        if ignoreArray[ii]:
+            continue
+        continueLoop = True
+        connectionCount = 0
+        loopCount = 0
+        while continueLoop:
+            line1EndPoints = np.array([[pLine.vertices[0,:]],[pLine.vertices[-1,:]]])
+            loopCount +=1
+            connectionCount = len(pLines)-ii-1
+            #ignoreArrayTemp  = np.zeros([len(pLines),1],dtype=bool)
+            print connectionCount
+            for jj in range(ii+1,len(pLines)):
+                line2EndPoints = np.array([[pLines[jj].vertices[0,:]],[pLines[jj].vertices[-1,:]]])
+                sameLength = len(pLines[jj].vertices[:,0])==len(pLine.vertices[:,0])
+                connectionId = _getConnectionId(line1EndPoints,line2EndPoints,sameLength)
+                
+                if not ignoreArray[jj]:
+                    print str(connectionId) +'ID'
+#                if connectionId == 5:
+#                    pdb.set_trace()
+                if connectionId == 0 or ignoreArray[jj]:
+                    connectionCount-=1
+                    if connectionCount == 0:
+                        continueLoop=False
+                elif connectionId == 1:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
+                    isClosed[ii] = True
+                    ignoreArray[jj] = True
+                    continueLoop = False
+                elif connectionId == 2:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-2::-1,:]))
+                    isClosed[ii] = True
+                    ignoreArray[jj] = True
+                    continueLoop=False
+                elif connectionId == 3:
+                    pdb.set_trace()
+                    pLine.vertices = np.vstack((pLines[jj].vertices[-1:1:-1,:],pLine.vertices))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 4:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-1:1:-1,:]))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 5:
+                    #pdb.set_trace()
+                    pLine.vertices = np.vstack((pLines[jj].vertices[:-1,:],pLine.vertices))
+                    
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 6:
+                    #pdb.set_trace()
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
+                    
+                    ignoreArray[jj] = True
+                    break
+    pdb.set_trace()            
+    pLines = list(compress(pLines,~ignoreArray))
+    isClosed = list(compress(isClosed,~ignoreArray))
     return pLines,isClosed
 
-def _isConnected(pointsFromLine1, pointsFromLine2):
+def _getConnectionId(pointsFromLine1, pointsFromLine2, sameLength):
     firstMatch = np.all(pointsFromLine1[0] == pointsFromLine2[0])
     lastMatch = np.all(pointsFromLine1[1] == pointsFromLine2[1])
     beginToEndMatch = np.all(pointsFromLine1[0] == pointsFromLine2[1])
     endToBeginMatch = np.all(pointsFromLine1[1] == pointsFromLine2[0])
     if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
         return 0
-    elif firstMatch and lastMatch:
+    elif firstMatch and lastMatch and sameLength:
         return 1
-    elif beginToEndMatch and endToBeginMatch:
+    elif beginToEndMatch and endToBeginMatch and sameLength:
         return 2
     elif firstMatch:
         return 3

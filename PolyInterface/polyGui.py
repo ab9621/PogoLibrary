@@ -4,8 +4,11 @@ Created on Fri Feb 10 16:45:00 2017
 
 @author: Callum
 """
+import matplotlib
+#matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 import numpy as np
+
 from matplotlib.collections import LineCollection
 from matplotlib.widgets import Lasso
 import pdb
@@ -15,6 +18,7 @@ class polyGui:
         self.plotPoly(polyInstance,**kwargs)
         
     def plotPoly(self,polyInstance,**kwargs):
+        
         lineList = []    
         for ii in range(polyInstance.numberOfEdges):
             x0=polyInstance.vertices[polyInstance.edges[ii,0]-1,0]
@@ -33,8 +37,8 @@ class polyGui:
         self.selected = np.zeros(len(self.lineData.get_segments())).astype(int)
         #self.ax.plot(polyInstance.vertices[:,1],polyInstance.vertices[:,2],'r.')
         #self.connect()
+        #plt.savefig('FigureOutput')
         plt.show()
-    
 #    def connect(self):
 #        self.picker = self.fig.canvas.mpl_connect('pick_event',self.onClick)
 #    

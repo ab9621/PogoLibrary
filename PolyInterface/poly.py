@@ -56,6 +56,7 @@ class poly:
                 return
             entities = dxfFile.entities
             pLines,isClosed = pS.findPlines(entities,elementSize,precision=5)
+            pLines,isClosed = pS.joinPlines(pLines,isClosed)
             holes = pS.findHoles(entities)
             #indexOfBoundary = pS.findOuterBoundaryIndex(pLines)
             indexOfBoundary=-1
