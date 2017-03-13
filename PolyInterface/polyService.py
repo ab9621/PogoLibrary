@@ -291,32 +291,18 @@ def convertToPolyline(entity,elementSize)    :
 
 def joinPlines(pLines, isClosed):
     ignoreArray = np.zeros([len(pLines),1],dtype=bool)
-    #print ignoreArray
-    #pdb.set_trace()
     for ii,pLine in enumerate(pLines):
         if ignoreArray[ii]:
             continue
         continueLoop = True
-        connectionCount = 0
-        loopCount = 0
+        maxmimumPotentialConnections = 0
         while continueLoop:
-            line1EndPoints = np.array([[pLine.vertices[0,:]],[pLine.vertices[-1,:]]])
-            loopCount +=1
-            connectionCount = len(pLines)-ii-1
-            #ignoreArrayTemp  = np.zeros([len(pLines),1],dtype=bool)
-            print connectionCount
+            maxmimumPotentialConnections = len(pLines)-ii-1
             for jj in range(ii+1,len(pLines)):
-                line2EndPoints = np.array([[pLines[jj].vertices[0,:]],[pLines[jj].vertices[-1,:]]])
-                sameLength = len(pLines[jj].vertices[:,0])==len(pLine.vertices[:,0])
-                connectionId = _getConnectionId(line1EndPoints,line2EndPoints,sameLength)
-                
-                if not ignoreArray[jj]:
-                    print str(connectionId) +'ID'
-#                if connectionId == 5:
-#                    pdb.set_trace()
+                connectionId = _getConnectionId(pLine,pLines[jj])
                 if connectionId == 0 or ignoreArray[jj]:
-                    connectionCount-=1
-                    if connectionCount == 0:
+                    maxmimumPotentialConnections-=1
+                    if maxmimumPotentialConnections == 0:
                         continueLoop=False
                 elif connectionId == 1:
                     pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
@@ -338,45 +324,67 @@ def joinPlines(pLines, isClosed):
                     ignoreArray[jj] = True
                     break
                 elif connectionId == 5:
-                    #pdb.set_trace()
                     pLine.vertices = np.vstack((pLines[jj].vertices[:-1,:],pLine.vertices))
-                    
                     ignoreArray[jj] = True
                     break
                 elif connectionId == 6:
-                    #pdb.set_trace()
                     pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
-                    
                     ignoreArray[jj] = True
                     break
-    pdb.set_trace()            
+                    
     pLines = list(compress(pLines,~ignoreArray))
     isClosed = list(compress(isClosed,~ignoreArray))
     return pLines,isClosed
 
-def _getConnectionId(pointsFromLine1, pointsFromLine2, sameLength):
-    firstMatch = np.all(pointsFromLine1[0] == pointsFromLine2[0])
-    lastMatch = np.all(pointsFromLine1[1] == pointsFromLine2[1])
-    beginToEndMatch = np.all(pointsFromLine1[0] == pointsFromLine2[1])
-    endToBeginMatch = np.all(pointsFromLine1[1] == pointsFromLine2[0])
+def _getConnectionId(line1, line2):
+    '''
+	Function to return the type of connection between polylines
+	
+	Parameters
+    ----------
+    line1EndPoints : 
+        Matplotlib.path object containing vertices of the first line
+    line2EndPoints : 
+        Matplotlib.path object containing vertices of the second line
+    sameLine :
+        Boolean showing whether
+    Returns
+    -------
+    connectId : int
+        Integer representing the type of connection between the two lines.
+                -1: Unassigned (should never return this)
+                0 : No connection
+                1 : Line1 and Line2 are the same polyline
+                2 : Line1 and Line2 are the same polyline with vertices in reverse order
+                3 : The first vertex of Line1 is coincident with the first vertex of Line2
+                4 : The last vertex of Line1 is coincident with the last vertex of Line2
+                5 : The first vertex of Line1 is coincident with the last vertex of Line2
+                6 : The last vertex of Line1 is coincident with the first vertex of Line2
+    '''
+    line1EndPoints = np.array([[line1.vertices[0,:]],[line1.vertices[-1,:]]])
+    line2EndPoints = np.array([[line2.vertices[0,:]],[line2.vertices[-1,:]]])
+    sameLine = line1.vertices==line2.vertices or line1.vertices == line2.vertices[:,-1:None:-1]
+    firstMatch = np.all(line1EndPoints[0] == line2EndPoints[0])
+    lastMatch = np.all(line1EndPoints[1] == line2EndPoints[1])
+    beginToEndMatch = np.all(line1EndPoints[0] == line2EndPoints[1])
+    endToBeginMatch = np.all(line1EndPoints[1] == line2EndPoints[0])
+    
+    connectId = -1
     if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
-        return 0
-    elif firstMatch and lastMatch and sameLength:
-        return 1
-    elif beginToEndMatch and endToBeginMatch and sameLength:
-        return 2
+        connectId =  0
+    elif firstMatch and lastMatch and sameLine:
+        connectId =  1
+    elif beginToEndMatch and endToBeginMatch and sameLine:
+        connectId =  2
     elif firstMatch:
-        return 3
+        connectId =  3
     elif lastMatch:
-        return 4
+        connectId =  4
     elif beginToEndMatch:
-        return 5
+        connectId =  5
     elif endToBeginMatch:
-        return 6
-        
-    
-    
-
+        connectId =  6
+    return connectId
         
 def findHoles(entities):
     numberOfEntities = len(entities)
