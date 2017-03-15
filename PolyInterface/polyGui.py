@@ -11,14 +11,15 @@ import numpy as np
 
 from matplotlib.collections import LineCollection
 from matplotlib.widgets import Lasso
+from matplotlib import colors as mcolors
 import pdb
 class polyGui:
-    def __init__(self,polyInstance,**kwargs):
+    def __init__(self,polyInstance,nodes=False,**kwargs):
         self.normalSelectedColor = np.array([[0, 0, 1, 1.0], [1, 0, 0, 1.0]])
-        self.plotPoly(polyInstance,**kwargs)
+        self.plotPoly(polyInstance,nodes,**kwargs)
         
-    def plotPoly(self,polyInstance,**kwargs):
-        
+    def plotPoly(self,polyInstance,nodes,**kwargs):
+        plt.ion()
         lineList = []    
         for ii in range(polyInstance.numberOfEdges):
             x0=polyInstance.vertices[polyInstance.edges[ii,0]-1,0]
@@ -29,7 +30,10 @@ class polyGui:
             lineList.append(line)
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111,**kwargs)
-        self.lineData = LineCollection(tuple(lineList),pickradius=5)
+        if np.any(nodes):
+            plt.plot(nodes[:,0],nodes[:,1],'.',zorder=1,MarkerSize=3)
+        colors = [mcolors.to_rgba(c) for c in plt.rcParams['axes.prop_cycle'].by_key()['color']]
+        self.lineData = LineCollection(tuple(lineList),pickradius=5,colors='r',zorder=10)
         self.lineData.set_picker(True)
         self.ax.add_collection(self.lineData)
         plt.autoscale(tight=True)

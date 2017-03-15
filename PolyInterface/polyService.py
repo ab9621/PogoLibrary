@@ -34,7 +34,7 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList) for vertexList in pLines)
     vertices = np.zeros([numberOfVertices,2])
-    boundaryFlags = np.zeros([numberOfVertices,2])
+    boundaryFlags = np.zeros([numberOfVertices,1],dtype='int32')
     edges = []
     for ii in range(len(pLines)):            
         for kk in range(len(pLines[ii].vertices)):
@@ -54,8 +54,9 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
         if isClosed[ii]:
             edges.append([jj,jStart])
             jj+=1
+        jj+=1
     edges = np.array(edges)
-    return vertices,boundaryFlags.astype(int),edges
+    return vertices,boundaryFlags,edges
 
 def writePoly2d(polyInstance,filePath):
     '''
@@ -87,7 +88,8 @@ def writePoly2d(polyInstance,filePath):
             polyInstance.vertexIDs[ii].tofile(f," ")
             f.write(" ")
             polyInstance.vertices[ii,:].tofile(f," ")
-            #polyInstance.boundaryFlags[ii].tofile(f," ",format = "%d")
+            f.write(" ")
+            polyInstance.boundaryFlags[ii].tofile(f," ",format="%d")
             f.write("\n")
         
         f.write("{} 0\n".format(polyInstance.numberOfEdges))
@@ -125,7 +127,7 @@ def findOuterBoundaryIndex(pLines):
     '''
     for ii in range(len(pLines)):
         jj = 0
-        while np.all(pLines[ii].contains_points(pLines[jj].vertices)) or jj==ii:
+        while np.all(pLines[ii].intersects_path(pLines[jj],filled=True)) or jj==ii:
             if jj == len(pLines)-1:
                 return ii
             jj+=1
@@ -159,14 +161,26 @@ def findPlines(entities,elementSize,precision = False):
     jj=0
     for ii in range(numberOfEntities):
         if entities[ii].dxftype == 'LWPOLYLINE':
+            
+            vertices = np.asarray(entities[ii].points)
             if entities[ii].is_closed:
+                isClosed.append(True)
+            elif autoClose(entities[ii].points):
+                vertices = vertices[:-1,:]
                 isClosed.append(True)
             else:
                 isClosed.append(False)
-            vertices = np.asarray(entities[ii].points)
+                
+            refinedVertices = np.zeros([0,2])
+            for jj,vertex in enumerate(vertices):
+                if jj == len(vertices)-1:
+                    if isClosed[ii]:
+                        refinedVertices = np.vstack((refinedVertices,refineLine(vertex[0],vertex[1],vertices[0][0],vertices[0][1],elementSize,False)))
+                    break
+                refinedVertices = np.vstack((refinedVertices,refineLine(vertex[0],vertex[1],vertices[jj+1][0],vertices[jj+1][1],elementSize,False)))
             
-            vertices = setPrecision(vertices,elementSize,precision)
-            pLines.append(mplPath.Path(vertices))
+            refinedVertices = setPrecision(refinedVertices,elementSize,precision)
+            pLines.append(mplPath.Path(refinedVertices))
             jj = jj+1
         elif entities[ii].dxftype == 'CIRCLE' or entities[ii].dxftype == 'ARC':
             pLine = convertToPolyline(entities[ii],elementSize)
@@ -180,14 +194,11 @@ def findPlines(entities,elementSize,precision = False):
             
             
         elif entities[ii].dxftype == 'LINE':
-            dy = entities[ii].end[1]-entities[ii].start[1]
-            dx = entities[ii].end[0]-entities[ii].start[0]
-            dr = np.sqrt(dy*dy + dx*dx)
-            numberOfSubVertices = int(np.ceil(dr/elementSize))
-            subVertices = np.zeros([numberOfSubVertices,2])
-            subVertices[:,0] = np.linspace(entities[ii].start[0],entities[ii].end[0],numberOfSubVertices)
-            subVertices[:,1] = np.linspace(entities[ii].start[1],entities[ii].end[1],numberOfSubVertices)
-            pLine = mplPath.Path(subVertices)
+            pLine = mplPath.Path(refineLine(entities[ii].start[0],
+                                            entities[ii].start[1],
+                                            entities[ii].end[0],
+                                            entities[ii].end[1],
+                                            elementSize))
             pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)                                       
             pLines.append(pLine)
             isClosed.append(False)            
@@ -202,6 +213,26 @@ def findPlines(entities,elementSize,precision = False):
     print(successStr)
     return (pLines,isClosed)
 
+def autoClose(pLine):
+    if pLine[-1] == pLine[0]:
+        return True
+    else:
+        return False
+
+
+def refineLine(x1,y1,x2,y2,elementSize,inclusive=True):
+    dy = y2-y1
+    dx = x2-x1
+    dr = np.sqrt(dy*dy + dx*dx)
+    numberOfSubVertices = int(np.ceil(dr/elementSize))
+    subVertices = np.zeros([numberOfSubVertices,2])
+    subVertices[:,0] = np.linspace(x1,x2,numberOfSubVertices)
+    subVertices[:,1] = np.linspace(y1,y2,numberOfSubVertices)
+    if inclusive:
+        return subVertices
+    else:
+        return subVertices[:-1,:]    
+    
 def getExponents(floatingPointNumbers):
     return np.round(np.log10(floatingPointNumbers)).astype(int)
     
@@ -381,9 +412,15 @@ def _getConnectionId(line1, line2):
     if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
         connectId =  0
     elif firstMatch and lastMatch and sameLine:
-        connectId =  1
+        if sameLine:
+            connectId = 1
+        else:
+            connectId = 7
     elif beginToEndMatch and endToBeginMatch and sameLine:
-        connectId =  2
+        if sameLine:
+            connectId =  2
+        else:
+            connectId = 8
     elif firstMatch:
         connectId =  3
     elif lastMatch:

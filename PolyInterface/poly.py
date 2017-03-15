@@ -11,7 +11,7 @@ import pdb
 class poly:
     vertices = np.empty([0,2])
     vertexIDs = np.empty([0,1])
-    boundaryFlags = np.empty([0,1]).astype(int)
+    boundaryFlags = np.empty([0,1],dtype='int32')
     holes = np.empty([0,3])
     holeIDs = np.empty([0,1])
     edges = np.empty([0,2]).astype(int)
@@ -58,9 +58,8 @@ class poly:
             pLines,isClosed = pS.findPlines(entities,elementSize,precision=5)
             pLines,isClosed = pS.joinPlines(pLines,isClosed)
             holes = pS.findHoles(entities)
-            indexOfBoundary=-1
+            indexOfBoundary=pS.findOuterBoundaryIndex(pLines)
             [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
-            
         elif filePath[-5:]=='.poly':
             try:
                 vertices,edges,holes=pS.readPoly(filePath)
@@ -101,9 +100,9 @@ class poly:
         newVertices[:-len(inputVertices),:] = self.vertices
         newVertices[-len(inputVertices):,:] = inputVertices
         self.vertices = newVertices
-        newBoundaryFlags = np.zeros([len(self.boundaryFlags)+len(inputVertices),2])
-        newBoundaryFlags[:-len(inputVertices),:] = self.boundaryFlags
-        newBoundaryFlags[-len(inputVertices):,:] = boundaryFlags
+        newBoundaryFlags = np.zeros([len(self.boundaryFlags)+len(inputVertices),1],dtype='int32')
+        newBoundaryFlags[:-len(inputVertices)] = self.boundaryFlags
+        newBoundaryFlags[-len(inputVertices):] = boundaryFlags
         self.boundaryFlags = newBoundaryFlags
         self._setNumberOfVertices()
         self._setNumberOfBoundaryVertices()
