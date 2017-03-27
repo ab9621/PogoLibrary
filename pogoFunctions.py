@@ -621,11 +621,13 @@ def hanningBeamProfile(nodes,
                            nPointsWindow)
                            
         interp1 = si.interp1d(base1, h1, kind='cubic')
-        interp1[interp1<0.0] = 0.0
         interp2 = si.interp1d(base2, h2, kind='cubic')
-        interp2[interp2<0.0] = 0.0
         
-        amplitudes = amplitude*interp1*interp2
+        a1 = interp1(nodes[axes[0][0]])
+        a1[a1<0.0] = 0.0
+        a2 = interp2(nodes[axes[1][0]])
+        a2[a2<0.0] = 0.0
+        amplitudes = amplitude*a1*a2
         
     else:
         raise ValueError('Three axis calculations are not yet implemented')
