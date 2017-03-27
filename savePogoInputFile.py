@@ -476,7 +476,10 @@ def writePogoInputFile(fileName,
                     raise Warning('totalForce is not supported for loads specified for individual nodes.')
 
                 amp = np.array([signals[c1][1],], dtype=precString)
-                    
+            
+            elif type(signals[c1][1]) is np.float64:
+                amp = np.array([signals[c1][1],], dtype=precString)
+                
             else:
                 raise ValueError('Signal amplitude not recognised')
                 

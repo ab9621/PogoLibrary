@@ -140,12 +140,13 @@ def sphereRayInstersetion(circleOrigin, circleRadius, rayOrigin, rayPath):
     
 def pointsNotInCrack2D(leftIntersection, rightIntersection, circlePoints):
     '''
-    Function to find the points which are not region where the defect joins the
-    circular hole.
+    Function to find the points which are not region where the defect joins 
+    the circular hole.
     
     IMPORTANT Assumes that the crack propagates in the +y direction and that
-    the leftIntersection has a larger x coordinate than rightIntersection. Also
-    assumes that the width of the crack is less than the radius of the circle
+    the leftIntersection has a larger x coordinate than rightIntersection. 
+    Also assumes that the width of the crack is less than the radius of the 
+    circle
     '''
     
     nCirclePoints = len(circlePoints[0])
