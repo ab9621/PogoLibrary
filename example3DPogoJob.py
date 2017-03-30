@@ -118,9 +118,9 @@ if path == '':
 '''
 In this case a simple 10 mm cube of aluminium. 
 '''
-xSize = 0.01
-ySize = 0.01
-zSize = 0.01
+xSize = 0.03
+ySize = 0.03
+zSize = 0.03
 
 gF.write3DBlockPolyFile(xSize,
                         ySize,
@@ -137,7 +137,7 @@ model, the transducer is placed on the top on the block, at z=0.01 and we are
 only interested in the first reflection off the backwall.
 '''
 f0 = 5E6
-v = 6400.
+v = 6317.
 modelTime = 4.0 * 2*zSize/v #travel time to back surface and back plus a bit for comfort
 
 '''
@@ -146,7 +146,7 @@ two nodes. The mesh will use 5 elements per wavelength so can use this in the
 calculation. A Gaussian input pulse will be used so the highest frequency is
 roughly 2*f0. The time step = v/(2*f0) / 5 / v = 1/(5*2*f0)
 '''
-modelTimeStep = 1./(5.*2.*f0) # this is just used for the meshing
+modelTimeStep = 1./(5.*2.*f0)*0.95 # this is just used for the meshing
 
 # Step 3 - mesh the block and load in the nodes and elements
 '''
@@ -184,7 +184,7 @@ print 'modelTimeStep = {}s'.format(modelTimeStep)
 nTimeSteps = int(modelTime/modelTimeStep)
 print 'nTimeSteps = {}'.format(nTimeSteps)
 
-transducerWidth = 0.005 #xSize/5.
+transducerWidth = 0.006#xSize/5.
 transducerCentre = np.array([xSize/2., ySize/2., zSize])
 
 transducerNodes = pF.findNodesInTransducer(nodes,
@@ -196,7 +196,7 @@ timeBase = np.linspace(0, nTimeSteps-1, nTimeSteps) * modelTimeStep
 inputSignal = pF.gaussTone(timeBase, 3.0/f0, f0) #centre of pulse at 2.5/f0
 # but allow a bit of spare room at the start.
 
-signalAmplitude = 10.0
+signalAmplitude = 100.0
 signalType = 0 # 0 corresponds to a force
 signalDoFAppliedTo = 3 # 3 is the z axis
 

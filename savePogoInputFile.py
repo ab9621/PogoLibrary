@@ -137,27 +137,27 @@ def writePogoInputFile(fileName,
         that desired in materialTypeRefs. Default is a single material with 
         the properties of Aluminium.
         
-    orientations : iterable
+    orientations : iterable, optional
         Can specify orientations. Each orientation type should be a list with
         with the parameter type followed by the parameters associated with
         that orientation. Default is None which is orientations not used.
         
-    boundaryConditions : iterable
+    boundaryConditions : iterable, optional
         The boundary conditions applied to the model. The iterable should be
         in the form [nodeSet1, nodeSet1FixedDOF, nodeSet2, nodeSet2FixedDOF,
         etc.]. Each pair should be a set of nodes (1 indexed) and a degree of
         freedom. Default is None in which case no boundary conditions are
         applied.
         
-    historyMeasurementFrequency : int
+    historyMeasurementFrequency : int, optional
         The number of time increments between history measurements being
         taken. Default is 20.
         
-    historyMeasurementStart : int
+    historyMeasurementStart : int, optional
         The starting increment of the history measurements (1 indexed).
         Default is 1.
         
-    fieldStoreIncrements : array, int
+    fieldStoreIncrements : array, int, optional
         The increments (1 indexed) at which to output the field at. Default
         is None which does not record any field data.
         
@@ -476,7 +476,10 @@ def writePogoInputFile(fileName,
                     raise Warning('totalForce is not supported for loads specified for individual nodes.')
 
                 amp = np.array([signals[c1][1],], dtype=precString)
-                    
+            
+            elif type(signals[c1][1]) is np.float64:
+                amp = np.array([signals[c1][1],], dtype=precString)
+                
             else:
                 raise ValueError('Signal amplitude not recognised')
                 

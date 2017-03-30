@@ -25,6 +25,7 @@ gaussianBeamProfile
 """
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.interpolate as si
 
 def loadNodeFile(fileName):
     '''
@@ -506,6 +507,9 @@ def gaussianBeamProfile(nodes,
         amplitudes = amplitude*np.exp(-1*(np.power((nodes[axes[0][0]]-transducerCentre[axes[0][0]])/axes[0][1], 2) \
                     + np.power((nodes[axes[1][0]]-transducerCentre[axes[1][0]])/axes[1][1], 2)))
     
+    else:
+        raise ValueError('Three axis calculations are not yet implemented')
+    
     if plotting == True:
         plt.figure()
         if len(axes) == 1:
@@ -521,6 +525,126 @@ def gaussianBeamProfile(nodes,
     
     return amplitudes
     
+def hanningBeamProfile(nodes, 
+                        transducerCentre,
+                        transXWidth,
+                        transYWidth,
+                        transZWidth = None,
+                        amplitude=1,
+                        plotting=False):
+    '''
+    Function to calculate the amplitudes needed to generate a Gaussian beam
+    profile across the foot print of a transducer. It can calculate both 1
+    and 2 dimensional Gaussian functions.
+    
+    Parameters
+    -----------
+    nodes : array, float
+        The coordinates of the nodes in the transducer passed in an array of
+        shape (nDims, nNodes). It must have 3 >= nDims >= 2 for a 1 
+        dimensional Gaussian profile and nDims = 3 for a 2 dimensional
+        profile.
+        
+    transducerCentre : float
+        The coordinates of the centre of the transducer.
+        
+    transXWidth : float
+        The width of the probe in the x-dimension, defined as the first
+        coordinate in nodes. Can be None if transYWidth is specified in
+        which case it is a 1 dimension distribution in the y axis (second 
+        coordinate) or transZWidth is specified in which case it is a 1 
+        dimension distribution in the z axis (third coordinate). If two
+        widths are supplied then the profile is the outer product of two
+        hanning windows.
+        
+    transYWidth : float
+        The width of the transducer in the y-dimension, defined as
+        the second coordinate in nodes. See documentation for transXWidth for
+        more details.
+        
+    transZWidth : float, optional
+        The width of the transducer in the z-dimension, defined as
+        the thrid coordinate in nodes. See documentation for transXWidth for 
+        more details. Default is None in which case it is not used.
+    
+    amplitude : float
+        The maximum amplitude of the Gaussian function.
+        
+    plotting : boolean
+        Whether to plot the generated distribution or not. This is a designed
+        as a convenient way of quickly visualising the beam profile. It works
+        for 1 dimension and 2 dimension Gaussian functions.
+    
+    Returns
+    --------
+    amplitudes : array
+        The amplitudes needed for each node in nodes, in the same order, to
+        create the Gaussian profile.
+    '''
+    if np.shape(nodes)[0] not in [2,3]:
+        raise ValueError('nodes must have 2 or 3 coordinates')
+    
+    if np.shape(nodes)[0] != len(transducerCentre):
+        raise ValueError('transducerCentre must have the same number of \
+        dimensions as nodes.')
+
+    nNodes = len(nodes[0])
+    
+    vals = [transXWidth, transYWidth, transZWidth]
+    axes = [[pos,val] for pos, val in enumerate(vals) if val != None]
+
+    amplitudes = np.zeros(nNodes)
+    
+    if len(axes) == 1:
+        nPointsWindow = 101
+        h1 = np.hanning(nPointsWindow)
+        base = np.linspace(transducerCentre[axes[0][0]] - axes[0][1]/2.,
+                           transducerCentre[axes[0][0]] + axes[0][1]/2., 
+                           nPointsWindow)
+        interp = si.interp1d(base, h1, kind='cubic')
+        try:
+            amplitudes = amplitude*interp(nodes[axes[0][0]])
+        except:
+            raise ValueError('Error doing interpolation. Possible that some \
+            nodes are outsie convex hull of transducer footprint.')
+        amplitudes[amplitudes<0.0] = 0.0
+        
+    elif len(axes) == 2:
+        nPointsWindow = 101
+        h1 = np.hanning(nPointsWindow)
+        h2 = np.hanning(nPointsWindow)
+        base1 = np.linspace(transducerCentre[axes[0][0]] - axes[0][1]/2.,
+                           transducerCentre[axes[0][0]] + axes[0][1]/2., 
+                           nPointsWindow)
+        base2 = np.linspace(transducerCentre[axes[1][0]] - axes[1][1]/2.,
+                           transducerCentre[axes[1][0]] + axes[1][1]/2., 
+                           nPointsWindow)
+                           
+        interp1 = si.interp1d(base1, h1, kind='cubic')
+        interp2 = si.interp1d(base2, h2, kind='cubic')
+        
+        a1 = interp1(nodes[axes[0][0]])
+        a1[a1<0.0] = 0.0
+        a2 = interp2(nodes[axes[1][0]])
+        a2[a2<0.0] = 0.0
+        amplitudes = amplitude*a1*a2
+        
+    else:
+        raise ValueError('Three axis calculations are not yet implemented')
+    if plotting == True:
+        plt.figure()
+        if len(axes) == 1:
+            plt.plot(nodes[axes[0][0]], amplitudes, 'o', ms=4)
+            plt.xlabel('{} coordinate'.format(axes[0][0]))
+            plt.ylabel('Amplitude (Arbitrary Units)')
+            
+        elif len(axes) == 2:
+            plt.scatter(nodes[axes[0][0]], nodes[axes[1][0]], c=amplitudes)
+            plt.xlabel('{} coordinate'.format(axes[0][0]))
+            plt.ylabel('{} coordinate'.format(axes[1][0]))
+            plt.colorbar(label='Amplitude (Arbitrary Units)')
+    
+    return amplitudes
 def waveVelocity(E, nu, rho):
     '''
     Convenience function to calculate the longitudinal and shear velocities
