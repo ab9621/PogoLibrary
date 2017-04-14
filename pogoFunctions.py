@@ -46,7 +46,8 @@ def loadNodeFile(fileName):
     if fileName[-5:] != '.node':
         raise ValueError('File supplied is not .node file')
     
-    nodes = (np.loadtxt(fileName, skiprows=1)[:,1:]).T
+    nodes = (np.genfromtxt(fileName, dtype='float64', skip_header=1)).T
+    nodes = nodes[1:]
     return nodes
     
 def loadElementFile(fileName):
@@ -69,7 +70,8 @@ def loadElementFile(fileName):
     if fileName[-4:] != '.ele':
         raise ValueError('File supplied is not .node file')
     
-    elements = (np.loadtxt(fileName, skiprows=1)[:,1:]).T
+    elements = (np.genfromtxt(fileName, dtype='int32', skip_header=1)).T
+    elements = elements[1:]
     return elements.astype('int32')
     
 def gaussTone(t, tau, f0):
