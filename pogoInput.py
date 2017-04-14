@@ -3,7 +3,8 @@ import numpy as np
 import warnings
 import subprocess
 import pogoFunctions as pF
-
+import pdb
+from PolyInterface import poly
 class PogoInput:
     def __init__(self,
                  fileName,
@@ -12,7 +13,7 @@ class PogoInput:
                  historyMeasurement,
                  nodes = None,
                  elements = None,
-                 polyName = None,
+                 geometryFile = None,
                  precision=8,
                  targetMeshSize = 5e-5,
                  nDims=2,
@@ -80,13 +81,25 @@ class PogoInput:
         self.dt = np.array([dt,],dtype=self.getPrecString())
         
         ### Node generation if necessary
-        if not np.any(nodes) and not polyName:
+        if not np.any(nodes) and not geometryFile:
             raise ValueError('Either a poly file or node/element definitions are required')
-        elif polyName and elementSize and not np.any(elements) and not np.any(nodes):
-            targetMeshArea = targetMeshSize*targetMeshSize
-            subprocess.call('triangle -q -j -a{:.12F {}.poly'.format(targetMeshArea,polyName))
-            nodes = pF.loadNodeFile(polyname+'.1.node')
-            elements = pF.loadElementFile(polyname+'.1.ele')
+        elif geometryFile and targetMeshSize and not np.any(elements) and not np.any(nodes):
+            if geometryFile.split('.')[-1] == 'dxf':
+                print 'Creating poly file from {}'.format(geometryFile)
+                poly.poly(geometryFile,elementSize = targetMeshSize,writeFile=True)
+            
+            if geometryFile.split('.')[-1] == 'poly':
+                geometryFile = geometryFile[:-5]
+            if self.nDims == 2:
+                targetMeshArea = targetMeshSize*targetMeshSize
+                subprocess.call('triangle -q -j -a{:.12}F {}.poly'.format(targetMeshArea,geometryFile))
+            elif self.nDims == 3:
+                pdb.set_trace()
+                targetMeshVolume = targetMeshSize*targetMeshSize*targetMeshSize
+                ### Add cwd
+                subprocess.call('tetgen {:.12}F {}.poly'.format(targetMeshVolume,geometryFile))
+            nodes = pF.loadNodeFile(geometryFile+'.1.node')
+            elements = pF.loadElementFile(geometryFile+'.1.ele')
         
         ### Number of nodes and node positions
         if np.shape(nodes)[0] != nDims:
@@ -130,7 +143,7 @@ class PogoInput:
         if min(elementTypeRefs) < 0: #unused values are set to 0 so -1 in zero indexing
             raise ValueError('orientationRefs must be 1 indexed.')
             
-        self.orientationRefs = orientationRefs.astype('int32') - 1    
+        self.orientationRefs = orientationRefs.astype('int32') - 1
         
         ### Elements
         if np.max(elements) > self.nNodes:
@@ -217,6 +230,7 @@ class PogoInput:
         if self.precision == 4:
             self.precString = 'float32'
         return precString
+    
         
     def writeFile(self):
         with open(self.fileName + '.pogo-inp','wb') as f:
@@ -296,7 +310,7 @@ class Orientation:
     def __init__(self,orInfo,precString):
         self.paramType = np.array([orInfo[0],], dtype='int32')
         self.nOrParams = np.array([len(orientations[1:]),],dtype='int32')
-        self.paramValues = np.array([orData[1:],],dtype = precString)
+        self.paramValues = np.array([orInfo[1:],],dtype = precString)
         
     def writeOrientation(self,fileId):
         self.paramType.tofile(fileId)
