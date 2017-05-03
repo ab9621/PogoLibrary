@@ -306,8 +306,6 @@ def gaussianAngledBeam(transducerNodes,
     traces = np.zeros((nt, nNodes))
     time = np.linspace(0, nt-1, nt)*dt
     verticalAngle *= np.pi/180.
-    #if xAngle != None:
-    #    xAngle *= np.pi/180.
     
     if xAngle == None:
         xMin = np.min(transducerNodes[0])
@@ -317,11 +315,8 @@ def gaussianAngledBeam(transducerNodes,
     else:
         if centre == None:
             raise ValueError('Centre must be supplied if xAngle is set.')
-        #import matplotlib.pyplot as plt
         centre = centre[:2]
         xPrime, yPrime = rotate2D(transducerNodes[:2], -1.*xAngle, centre)
-        #plt.scatter(xPrime, yPrime)
-        #plt.gca().set_aspect('equal')
         xMin = np.min(xPrime)
         distances = xPrime - xMin
         taus = distances*np.sin(verticalAngle)*1./velocity + 1E-6 #1E-6 is a shift
@@ -433,6 +428,7 @@ def gaussianBeamProfile(nodes,
                         sigmaY,
                         sigmaZ=None,
                         amplitude=1,
+                        xAngle=None,
                         plotting=False):
     '''
     Function to calculate the amplitudes needed to generate a Gaussian beam
@@ -471,6 +467,12 @@ def gaussianBeamProfile(nodes,
     amplitude : float
         The maximum amplitude of the Gaussian function.
         
+    xAngle : float
+        This allows for a rotation of the transducer on the surface of the
+        specimen. Angle must be in degrees and is anti-clockwise around the
+        positive z axis. 0 degrees points in the direction of the positive
+        x axis.
+        
     plotting : boolean
         Whether to plot the generated distribution or not. This is a designed
         as a convenient way of quickly visualising the beam profile. It works
@@ -507,6 +509,15 @@ def gaussianBeamProfile(nodes,
         amplitudes = amplitude*np.exp(-1*np.power((nodes[axes[0][0]]-transducerCentre[axes[0][0]])/axes[0][1], 2))
         
     elif len(axes) == 2:
+        if xAngle != None:
+            if len(nodes) != 3:
+                raise ValueError('Rotation only works in 3D')
+                
+            centre = transducerCentre[:2]
+            xPrime, yPrime = rotate2D(nodes[:2], -1.*xAngle, centre)
+            nodes[0] = xPrime
+            nodes[1] = yPrime
+
         amplitudes = amplitude*np.exp(-1*(np.power((nodes[axes[0][0]]-transducerCentre[axes[0][0]])/axes[0][1], 2) \
                     + np.power((nodes[axes[1][0]]-transducerCentre[axes[1][0]])/axes[1][1], 2)))
     
