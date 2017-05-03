@@ -26,6 +26,7 @@ gaussianBeamProfile
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as si
+import itertools
 
 def loadNodeFile(fileName):
     '''
@@ -647,6 +648,7 @@ def hanningBeamProfile(nodes,
             plt.colorbar(label='Amplitude (Arbitrary Units)')
     
     return amplitudes
+    
 def waveVelocity(E, nu, rho):
     '''
     Convenience function to calculate the longitudinal and shear velocities
@@ -682,9 +684,48 @@ def createRectOrientation(phi,addRotDim=3,addRotAngle=0):
     
     R = np.array([[np.cos(phi), -np.sin(phi), 0],
                   [np.sin(phi),  np.cos(phi), 0],
-                  [0,                  0, 1]])
+                  [0, 0, 1]])
     
     xPrime = np.matmul(R,xAx)
     yPrime = np.matmul(R,yAx)
     orOut = np.hstack((xPrime, yPrime, origin, addRotDim,addRotAngle))
     return orOut   
+    
+def minEdgeLength(nodes, elements):
+    '''
+    Function to find the minimum edge length of any element.
+    
+    Parameters
+    ----------
+    nodes : array
+        The position of the nodes, either in 2 or 3 dimensions.
+        
+    elements : array
+        The nodes which make up each element.
+        
+    Returns
+    -------
+    minDistance : float
+        The minimum length of any element side.
+    '''
+    minDistance = 1000000000.0 #pointlessly large number
+    
+    nNodesPerElement = len(elements)
+    print '{} nodes per element'.format(nNodesPerElement)
+    
+    combinations = itertools.combinations(range(1, nNodesPerElement+1), 2)
+    
+    for a in combinations:
+        p1 = nodes[:, elements[a[0]-1, :]-1 ]
+        p2 = nodes[:, elements[a[0]-2, :]-1 ]
+        
+        tmpMin = np.min(np.sum((p1-p2)**2, axis=0))
+        
+        if tmpMin < minDistance:
+            minDistance = tmpMin
+    
+    minDistance = np.sqrt(minDistance)        
+    return minDistance
+        
+    
+    
