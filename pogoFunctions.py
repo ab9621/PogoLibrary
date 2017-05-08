@@ -717,7 +717,7 @@ def minEdgeLength(nodes, elements):
     Returns
     -------
     minDistance : float
-        The minimum length of any element side.
+        The minimum length of any element side of any element.
     '''
     minDistance = 1000000000.0 #pointlessly large number
     
