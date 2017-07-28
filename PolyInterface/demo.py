@@ -10,7 +10,7 @@ Example script shoing conversion of a dxf file to a poly object, saving the
 object to a .poly file, and displaying the PSLG
 """
 
-from poly import poly
+from poly import Poly
 from polyGui import polyGui
 
 PSLG = poly(filePath = "Demo.dxf",elementSize = 2e-5,writeFile=True)

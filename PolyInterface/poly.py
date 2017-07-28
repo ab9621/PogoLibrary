@@ -8,7 +8,8 @@ import numpy as np
 import dxfgrabber as dxf
 import polyService as pS
 import pdb
-class poly:
+import matplotlib.path as mplPath
+class Poly:
     vertices = np.empty([0,2])
     vertexIDs = np.empty([0,1])
     boundaryFlags = np.empty([0,1],dtype='int32')
@@ -20,7 +21,7 @@ class poly:
     numberOfEdges = 0    
     numberOfHoles = 0
     numberOfBoundaryVertices = 0
-    def __init__(self,filePath = None,elementSize = 2e-5,writeFile=True):
+    def __init__(self,filePath = None,elementSize = 2e-5,writeFile=True,addLines = False):
         '''    
         Parameters
         ----------
@@ -60,15 +61,19 @@ class poly:
             holes = pS.findHoles(entities)
             indexOfBoundary=pS.findOuterBoundaryIndex(pLines)
             [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
+            [faces,sLines] = pS.findFaces(pLines,isClosed)
+            regions = pS.splitFaces(faces,sLines)
         elif filePath[-5:]=='.poly':
             try:
                 vertices,edges,holes=pS.readPoly(filePath)
             except IOError:
                 print('No such poly file. Maybe you meant .dxf? Creating empty graph.')
                 return
+        
         self.addVertices(vertices,boundaryFlags)
         self.addEdges(edges)
         self.addHoles(holes)
+        self.addRegions(regions)
         if writeFile:
             pS.writePoly2d(self,filePath)
             
@@ -94,6 +99,8 @@ class poly:
     def _setHoleIDs(self):
         self.holeIDs=np.arange(len(self.holes)).astype(int) + 1                                
                                  
+    def _setNumberOfRegions(self):
+        self.numberOfRegions = len(self.regions)
         
     def addVertices(self,inputVertices,boundaryFlags):
         newVertices = np.zeros([len(self.vertices)+len(inputVertices),2])
@@ -107,6 +114,7 @@ class poly:
         self._setNumberOfVertices()
         self._setNumberOfBoundaryVertices()
         self._setVertexIDs()
+    
         
     def addEdges(self,inputEdges):
         newEdges = np.zeros([len(self.edges)+len(inputEdges),2])
@@ -123,6 +131,14 @@ class poly:
         self.holes = newHoles
         self._setNumberOfHoles()
         self._setHoleIDs()
+    
+    def addRegions(self,regions):
+        self.regions = []
+        for ii in range(len(regions)):
+            region = regions[ii]
+            
+            self.regions.append(mplPath.Path(np.array(region.exterior.coords)))
+        self._setNumberOfRegions()    
     
     def emptyPoly(self):
         self.vertices = np.empty([0,2])
