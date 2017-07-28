@@ -94,7 +94,6 @@ class PogoInput:
                 targetMeshArea = targetMeshSize*targetMeshSize
                 subprocess.call('triangle -q -j -a{:.12}F {}.poly'.format(targetMeshArea,geometryFile))
             elif self.nDims == 3:
-                pdb.set_trace()
                 targetMeshVolume = targetMeshSize*targetMeshSize*targetMeshSize
                 ### Add cwd
                 subprocess.call('tetgen {:.12}F {}.poly'.format(targetMeshVolume,geometryFile))
@@ -113,29 +112,29 @@ class PogoInput:
         
         ### Element type refs
         if elementTypeRefs == None:
-            elementTypeRefs = np.ones(self.nElements)
+            elementTypeRefs = np.zeros(self.nElements)
         if len(elementTypeRefs) != self.nElements:
             raise ValueError('elementTypeRefs must be of length nElements.')
-        if min(elementTypeRefs) != 1:
-            raise ValueError('elementTypeRefs must be 1 indexed.')
+        #if min(elementTypeRefs) != 0:
+        #    raise ValueError('elementTypeRefs must be 1 indexed.')
         
-        self.elementTypeRefs = elementTypeRefs.astype('int32') - 1
+        self.elementTypeRefs = elementTypeRefs.astype('int32')# - 1
         
         ### Material type refs
         if materialTypeRefs == None:
-            materialTypeRefs = np.ones(self.nElements)
+            materialTypeRefs = np.zeros(self.nElements)
             
         if len(materialTypeRefs) != self.nElements:
             raise ValueError('materialTypeRefs must be of length nElements.')
             
-        if min(materialTypeRefs) != 1:
-            raise ValueError('materialTypeRefs must be 1 indexed.')
+        #if min(materialTypeRefs) != 1:
+        #    raise ValueError('materialTypeRefs must be 1 indexed.')
             
-        self.materialTypeRefs = elementTypeRefs.astype('int32') #- 1
+        self.materialTypeRefs = materialTypeRefs.astype('int32') #- 1
         
         ### Element orientations
         if orientationRefs == None:
-            orientationRefs = np.zeros(self.nElements)
+            orientationRefs = np.zeros(self.nElements,dtype = 'int32')
             
         if len(orientationRefs)!= self.nElements:
             raise ValueError('orientationRefs must be of length nElements.')
@@ -143,7 +142,7 @@ class PogoInput:
         if min(elementTypeRefs) < 0: #unused values are set to 0 so -1 in zero indexing
             raise ValueError('orientationRefs must be 1 indexed.')
             
-        self.orientationRefs = orientationRefs.astype('int32') - 1
+        self.orientationRefs = orientationRefs.astype('int32')# - 1
         
         ### Elements
         if np.max(elements) > self.nNodes:
@@ -193,20 +192,20 @@ class PogoInput:
             nSets = len(boundaryConditions) / 2
             self.nFixDof = np.array([sum([len(boundaryConditions[c1*2]) for c1 in range(nSets)]),],dtype = 'int32')
             self.boundaryConditions = []
-            for bc in boundaryConditions:
-                self.boundaryConditions.append(BoundaryCondition(bc))
-        
+            for c1 in range(0,nSets):
+                #self.boundaryConditions.append(BoundaryCondition(boundaryConditions[c1]))
+                self.boundaryConditions.append(np.array([(boundaryConditions[c1*2]-1)*4 + boundaryConditions[c1*2+1]-1,],dtype='int32'))
         ### Input signals
         self.nInputSignals = np.array([len(signals),],dtype = 'int32')
         self.signals = []
         for signal in signals:
-            self.signals.append(Signal(signal,totalForce,self.getPrecString()))
-        
+            self.signals.append(Signal(signal,totalForce,self.getPrecString(),dt))
+            
         ### History measurements
         if historyMeasurement == None:
             warnings.warn('Warning : No history measurements requested.')
-            self.nMeas = np.array([0,],dtype = 'int32')
-            self.historyMeasurement = np.array([0,],dtype = 'int32')
+            self.nMeas = 0
+            self.historyMeasurement = 0
         else:
             self.nMeas = np.array([len(historyMeasurement),],dtype = 'int32')
             self.historyMeasurement = HistoryMeasurement(historyMeasurement,historyMeasurementFrequency)
@@ -262,17 +261,22 @@ class PogoInput:
             if not self.orientations == None:
                 for orientation in self.orientations:
                     orientation.writeOrientation(f)
-            
             self.nFixDof.tofile(f)
             if not self.boundaryConditions == None:
                 for bc in self.boundaryConditions:
-                    bc.writeBoundaryCondition(f)
+                    bc.tofile(f)
             self.nInputSignals.tofile(f)
-            self.nt.tofile(f)
-            self.dt.tofile(f)
+            self.signals[0].nt.tofile(f)
+            self.signals[0].dt.tofile(f)
             for signal in self.signals:
                 signal.writeSignal(f)
-            self.historyMeasurement.writeHistory(f)
+            if self.nMeas>0:
+                self.historyMeasurement.writeHistory(f)
+            else:
+                
+                np.array([0,], dtype='int32').tofile(f)
+                np.array([0,], dtype='int32').tofile(f)
+            
             self.nFieldStore.tofile(f)
             self.fieldStoreIncrements.tofile(f)
 
@@ -309,7 +313,7 @@ class ElementType:
 class Orientation:
     def __init__(self,orInfo,precString):
         self.paramType = np.array([orInfo[0],], dtype='int32')
-        self.nOrParams = np.array([len(orientations[1:]),],dtype='int32')
+        self.nOrParams = np.array([len(orInfo[1:]),],dtype='int32')
         self.paramValues = np.array([orInfo[1:],],dtype = precString)
         
     def writeOrientation(self,fileId):
@@ -319,30 +323,31 @@ class Orientation:
         
 class BoundaryCondition:
     def __init__(self,BCs):
-        self.nodes = BC[0]
-        self.dof = BC[1]
+        self.nodes = np.array(BCs[0])
+        self.dof = np.array(BCs[1])
     def writeBoundaryCondition(self,fileId):
         dofOut = np.array([(self.nodes-1)*4 + self.dof-1,],dtype='int32')
-        dof.tofile(fileId)
+        dofOut.tofile(fileId)
         
 class HistoryMeasurement:
-    nodes = np.empty([0,1],dtype='int32')
-    dofs = np.empty([0,1],dtype='int32')
+    nodes = np.array([],dtype='int32')
+    dofs = np.array([],dtype='int32')
     def __init__(self,histInfo,frequency):
         ###Add Input checking
         
         for history in histInfo:
-            self.nodes = np.vstack((self.nodes,np.reshape(history[0],[history[0].shape[0],1])))
-            self.dofs = np.vstack((self.dofs,history[1]))
+            self.nodes = np.hstack((self.nodes,history[0]))
+            self.dofs = np.hstack((self.dofs,history[1]))
+        
         self.frequency = np.array([frequency,],dtype = 'int32')
         self.nMeas = np.array([len(self.nodes),],dtype = 'int32')
-        
         ###Must Add Version 1.04 support
     
     def writeHistory(self,fileId):
         self.nMeas.tofile(fileId)
         self.frequency.tofile(fileId)
-        outHist = np.array(self.nodes*4) + self.dofs-1
+        pdb.set_trace()
+        outHist = self.nodes*4 + self.dofs - 1
         outHist.tofile(fileId)
 class FieldMeasurement:
     def __init__(self,increments=0):
@@ -350,13 +355,13 @@ class FieldMeasurement:
         self.increments = np.array([increments - 1],dtype='int32')
                 
 class Signal:
-    def __init__(self, signalInfo, totalForce, precString):
+    def __init__(self, signalInfo, totalForce, precString,dt):
         if signalInfo:
             nNodes = len(signalInfo[0])
             self.type = np.array([signalInfo[3],],dtype = 'int32')
-            if len(np.unique(signalInfo[0])) != nNodes:
-                errStr = 'Duplicate nodes cannot be specified for a signal'
-                raise ValueError(errStr) 
+            # if len(np.unique(signalInfo[0])) != nNodes:
+            #     errStr = 'Duplicate nodes cannot be specified for a signal'
+            #     raise ValueError(errStr) 
             
             if np.size(signalInfo[1]) != 1 and len(signalInfo[1]) != nNodes:
                 raise ValueError('Signal amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
@@ -391,6 +396,8 @@ class Signal:
             self.dof = np.array(signalInfo[2],dtype ='int32')
             
             self.shape = np.array(signalInfo[4],dtype = precString)
+            self.dt = np.array(dt,dtype=precString)
+            self.nt = np.array(len(signalInfo[4]),dtype = 'int32')
             
     
     def writeSignal(self,fileId):
