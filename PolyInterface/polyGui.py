@@ -13,14 +13,14 @@ from matplotlib.collections import LineCollection
 from matplotlib.widgets import Lasso
 from matplotlib import colors as mcolors
 import pdb
-class polyGui:
+class PolyGui:
     def __init__(self,polyInstance,nodes=False,**kwargs):
         self.normalSelectedColor = np.array([[0, 0, 1, 1.0], [1, 0, 0, 1.0]])
         self.plotPoly(polyInstance,nodes,**kwargs)
         
     def plotPoly(self,polyInstance,nodes,**kwargs):
         plt.ion()
-        lineList = []    
+        lineList = []
         for ii in range(polyInstance.numberOfEdges):
             x0=polyInstance.vertices[polyInstance.edges[ii,0]-1,0]
             y0=polyInstance.vertices[polyInstance.edges[ii,0]-1,1]
