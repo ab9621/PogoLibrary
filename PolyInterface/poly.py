@@ -21,6 +21,7 @@ class Poly:
     numberOfEdges = 0    
     numberOfHoles = 0
     numberOfBoundaryVertices = 0
+    elementSize = 0
     def __init__(self,filePath = None,elementSize = 2e-5,writeFile=True,addLines = False):
         '''    
         Parameters
@@ -46,6 +47,7 @@ class Poly:
         
         ''' 
         self.emptyPoly()
+        self.elementSize = elementSize
         if not filePath:
             print('Creating empty graph...\n')
             return
@@ -56,8 +58,9 @@ class Poly:
                 print('No such DXF file. Maybe you meant .poly? Creating empty graph.')
                 return
             entities = dxfFile.entities
-            pLines,isClosed = pS.findPlines(entities,elementSize,precision=5)
-            pLines,isClosed = pS.joinPlines(pLines,isClosed)
+            pLines,isClosed = pS.findPlines(entities,self.elementSize,precision=5)
+            pLines,isClosed,_ = pS.joinPlines(pLines,pLines,isClosed,ignoreList = [])
+            
             holes = pS.findHoles(entities)
             indexOfBoundary=pS.findOuterBoundaryIndex(pLines)
             [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
@@ -148,3 +151,66 @@ class Poly:
         self.numberOfEdges = 0
         self.numberOfHoles = 0
         self.numberOfBoundaryVertices = 0
+        
+    def addArc(self,arcPoint1,arcPoint2,arcPoint3,type = '3pt',boundary = False):
+        #http://paulbourke.net/geometry/circlesphere/
+        # 
+        #     _do3PtArc()
+        #if type.lower() == 'sce':
+        #     _doSCEArc()
+        # elif type.lower() == 'sca'
+        #     _doSCAArc()
+        # elif type.lower() == 'scl'
+        #     _doSCLArc()
+        if type.lower() == '3pt':
+            p1 = arcPoint1
+            p2 = arcPoint2
+            p3 = arcPoint3
+            
+            if not boundary:
+                indexOfBoundary = -1
+            else:
+                indexOfBoundary = 0
+            def _getDiffs():
+                dy1 = float(p2[1]-p1[1])
+                dx1 = float(p2[0]-p1[0])
+                dy2 = float(p3[1]-p2[1])
+                dx2 = float(p3[0]-p2[0])
+                return dy1,dx1,dy2,dx2
+                
+            dy1,dx1,dy2,dx2 = _getDiffs()
+            if dx1 == 0:
+                p2,p3 = p3,p2
+                dy1,dx1,dy2,dx2 = _getDiffs()
+            elif dx2 == 0:
+                p1,p2 = p2,p1
+                dy1,dx1,dy2,dx2 = _getDiffs()
+                
+            grad1 = dy1/dx1
+            grad2 = dy2/dx2
+            denom = 2*(grad2-grad1)
+            if denom == 0 or np.any([dx1,dx2]==0):
+                errMsg = 'Points lie on parallel lines. No circle could be found'
+                raise ValueError(errMsg)
+            numerator = grad1*grad2*(p1[1]-p3[1])+grad2*(p1[0]+p2[0])-grad1*(p2[0]+p3[0])
+            x = numerator / denom
+            y = -1/grad1*(x-(p1[0]+p2[0])/2)+(p1[1]+p2[1])/2
+            
+            def _getAngles(p):
+                dy = p[1]-y    
+                dx = p[0]-x
+                th = np.arctan2(dy,dx)
+                return th
+            th1,th2,th3 = _getAngles(p1),_getAngles(p2),_getAngles(p3)
+            startTheta = min([th1,th2,th3])
+            endTheta = max([th1,th2,th3])
+        
+        r = np.sqrt((x-p1[0])**2+(y-p1[1])**2)
+        polyline = pS.createArcPolyline(startTheta,endTheta,r,[x,y],self.elementSize)
+        pointsNotInExisting = np.logical_not(mplPath.Path(self.vertices).contains_points(polyline.vertices))
+        isNewBoundary = np.any(pointsNotInExisting)
+        if isNewBoundary
+        pdb.set_trace()
+        [vertices,boundaryFlags,edges] = pS.polylinesToPSLG([polyline,],[False,],indexOfBoundary)
+        self.addVertices(vertices,boundaryFlags)
+        self.addEdges(edges)

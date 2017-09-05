@@ -56,7 +56,6 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
             edges.append([jj,jStart])
         jj+=1
     edges = np.array(edges)
-    pdb.set_trace()
     return vertices,boundaryFlags,edges
 
 def writePoly2d(polyInstance,filePath):
@@ -78,7 +77,6 @@ def writePoly2d(polyInstance,filePath):
     -------
 	  0, regardless of success or failure. May implement error codes in the future.
     '''
-#        filePath = filePath[:-4]
     if filePath[-5:]!='.poly':
         filePath += '.poly'
     filePath = filePath
@@ -283,100 +281,146 @@ def convertToPolyline(entity,elementSize)    :
         Array of (x,y) pairs representing vertices on a polyline representing the entity.	
     '''
     if entity.dxftype == 'CIRCLE':
-        thetaBegin = 0
-        thetaEnd = 2*np.pi
+        startTheta = 0
+        endTheta = 2*np.pi
         isArc=False
     elif entity.dxftype == 'ARC':
-        thetaBegin = entity.start_angle * np.pi / 180
-        thetaEnd = entity.end_angle * np.pi / 180
+        startTheta = entity.start_angle * np.pi / 180
+        endTheta = entity.end_angle * np.pi / 180
         isArc=True
     else:
         errStr = 'Error: Invalid entity passed to convertToPolyline.'
         raise ValueError(errStr)
-            
-    angleRange = thetaEnd - thetaBegin            
-    r = entity.radius
-    dTheta = np.arcsin(elementSize/(2 * r)) * 2
+    return createArcPolyline(startTheta,endTheta,entity.radius,[entity.center[0],entity.center[1]],elementSize,isArc)
+
+def createArcPolyline(startTheta,endTheta,radius,centre,elementSize,isArc = True):
+    angleRange = endTheta - startTheta           
+    dTheta = np.arcsin(elementSize/(2 * radius)) * 2
     nTheta = int(np.ceil(angleRange/dTheta))
     
-    theta = np.linspace(thetaBegin,thetaEnd,nTheta)
+    theta = np.linspace(startTheta,endTheta,nTheta)
     if isArc:
         polyline = np.zeros([nTheta,2])
-        polyline[:,0] = r * np.cos(theta) + entity.center[0]
-        polyline[:,1] = r * np.sin(theta) + entity.center[1]
+        polyline[:,0] = radius * np.cos(theta) + centre[0]
+        polyline[:,1] = radius * np.sin(theta) + centre[1]
     else:
         polyline = np.zeros([nTheta-1,2])
-        polyline[:,0] = r * np.cos(theta[:-1]) + entity.center[0]
-        polyline[:,1] = r * np.sin(theta[:-1]) + entity.center[1]        
+        polyline[:,0] = radius * np.cos(theta[:-1]) + centre[0]
+        polyline[:,1] = radius * np.sin(theta[:-1]) + centre[1]        
     polyline = mplPath.Path(polyline)
     return polyline
 
-def joinPlines(pLines, isClosed):
+def _doJoin(line,otherLine,connectionId):
+    
     '''
-	Function to join polylines together.
+	Performs the joining operation to the lines based on which type of connection they have.
 	
 	Parameters
     ----------
-    pLines : List
-        List of matplotlib.path objects, each representing a polyline
-	isClosed : List
-		List of booleans corresponding to the pslg entities. 'true' forces the 
-		pslg to close the entity, 'false' does not
-		
+        line:
+            Matplotlib.path containing vertices of one line
+        otherLine:
+            Matplotlib.path containing vertices of an intersecting line
+        connectionId:
+            Integer describing how the lines are joined (see _getConnectionId for details)
+    Returns
+        line:
+            Matplotlib.path containing the joined line
+        isClosed:
+            Boolean - True if line is closed, otherwise false.
+    -------
+    
+    '''
+    if connectionId == 3:
+        line.vertices = np.vstack((otherLine.vertices[-1:0:-1,:],line.vertices))
+        isClosed = False
+    elif connectionId == 4:
+        line.vertices = np.vstack((line.vertices,otherLine.vertices[-2::-1,:]))
+        isClosed = False
+    elif connectionId == 5:
+        line.vertices = np.vstack((otherLine.vertices[:-1,:],line.vertices))
+        isClosed = False
+    elif connectionId == 6:
+        line.vertices = np.vstack((line.vertices,otherLine.vertices[1:,:]))
+        isClosed = False
+    elif connectionId == 7:
+        line.vertices = np.vstack((otherLine.vertices[-2:1:-1,:],line.vertices))
+        isClosed = True
+    elif connectionId == 8:
+        line.vertices = np.vstack((line.vertices,otherLine.vertices[1:-1,:]))
+        isClosed = True
+    return line,isClosed
+    
+def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
+    '''
+	Recursive function to search through a list of polylines (in the form of mpl.Paths) and
+	join them together into one path if they are attached at the ends.
+	
+	Parameters
+    ----------
+    lines : 
+        List of Matplotlib.path parent lines (first iteration this will just be the set of all lines in the model)
+    otherLines : 
+        List of Matplotlib.path "ghost" lines, containing all lines in the model.
+    isClosedList : 
+        Boolean list describing whether a line is closed. This is updated based on the new lines formed by joining
+    ignoreList : 
+        Only relevant for levels > 0. Informs which lines have been attached to other lines, to stop confusion.
+    level:
+        Which level of the recursion is the code currently at. Useful for debugging and initialisation.
+    
     Returns
     -------
-    joinedPLines : List
-        Reduced list of matplotlib.path objects. The polylines from the input have been joined if any endpoints overlap.
-    isClosed : List
-        Same as input, only modified if the joining process results in a closed polygon
+    newLines : 
+        List of Matplotlib.path lines. Each line no longer is connected at end points to any other line.
+    newClosedList: 
+        Boolean list describing whether the new lines are closed.
+    ignoreList:
+        List of indices. Only relevant in recursion. Informs which lines have been investigated in the current iteration.
+    
+    Notes
+    -----
+    This is very primitive, and doesn't deal with intersections in any way (where points that are not end points coincide, 
+    or lines cross in any way). 
     '''
-    ignoreArray = np.zeros([len(pLines),1],dtype=bool)
-    for ii,pLine in enumerate(pLines):
-        if ignoreArray[ii]:
-            continue
-        continueLoop = True
-        maximumPotentialConnections = 0
-        while continueLoop:
-            maximumPotentialConnections = len(pLines)-ii-1
-            if maximumPotentialConnections == 0:
-                continueLoop=False
-            for jj in range(ii+1,len(pLines)):
-                connectionId = _getConnectionId(pLine,pLines[jj])
-                print connectionId
-                if connectionId == 0 or ignoreArray[jj]:
-                    maximumPotentialConnections-=1
-                    if maximumPotentialConnections == 0:
-                        continueLoop=False
-                elif connectionId == 1:
-                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
-                    isClosed[ii] = True
-                    ignoreArray[jj] = True
-                    continueLoop = False
-                elif connectionId == 2:
-                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-2::-1,:]))
-                    isClosed[ii] = True
-                    ignoreArray[jj] = True
-                    continueLoop=False
-                elif connectionId == 3:
-                    pLine.vertices = np.vstack((pLines[jj].vertices[-1:1:-1,:],pLine.vertices))
-                    ignoreArray[jj] = True
-                    break
-                elif connectionId == 4:
-                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-1:1:-1,:]))
-                    ignoreArray[jj] = True
-                    break
-                elif connectionId == 5:
-                    pLine.vertices = np.vstack((pLines[jj].vertices[:-1,:],pLine.vertices))
-                    ignoreArray[jj] = True
-                    break
-                elif connectionId == 6:
-                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
-                    ignoreArray[jj] = True
-                    break
-                    
-    joinedPLines = list(compress(pLines,~ignoreArray))
-    isClosed = list(compress(isClosed,~ignoreArray))
-    return joinedPLines,isClosed
+    if level == 0:
+        ignoreList = []
+    newLines = []
+    newClosedList = []
+    internalIgnoreList = []
+    if level==0:
+        pdb.set_trace()
+    for ii in range(len(lines)):
+        line = lines[ii]
+        newClosedList.append(isClosedList[ii])
+        newLines.append(line)
+        for jj in range(len(otherLines)):
+            if jj in ignoreList:
+                continue
+            otherLine = otherLines[jj]
+            connectionId = _getConnectionId(line,otherLine)
+            if connectionId > 2 and connectionId < 9:
+                print(connectionId)
+                print(jj in ignoreList)
+                joinedPline,isClosed = _doJoin(line,otherLine,connectionId)
+                ignoreList.append(jj)
+                ignoreList.append(ii)
+                internalIgnoreList.append(jj)
+                internalIgnoreList.append(ii)
+                newLines.pop(-1)
+                newClosedList.pop(-1)
+                plt.figure()
+                plt.plot(joinedPline.vertices[:,0],joinedPline.vertices[:,1],'.')
+                joinedPlineList,isClosed,ignoreList = joinPlines([joinedPline,],otherLines,isClosedList,ignoreList = ignoreList,level = level+1)
+                newLines.extend(joinedPlineList)
+                newClosedList.extend(isClosed)
+                if level == 0:
+                     pdb.set_trace()
+                break
+            
+    
+    return newLines,newClosedList,ignoreList
+
 def _getConnectionId(line1, line2):
     '''
 	Function to return the type of connection between polylines
@@ -403,9 +447,9 @@ def _getConnectionId(line1, line2):
                 6 : The last vertex of Line1 is coincident with the first vertex of Line2
                 7 : Both endpoints match in same order (first to first, last to last)
                 8 : Both endpoints match in reverse order (first to last, last to first)
+                9 : Line2 is already part of Line1
     '''
 
-    pdb.set_trace()
     line1EndPoints = np.array([[line1.vertices[0,:]],[line1.vertices[-1,:]]])
     line2EndPoints = np.array([[line2.vertices[0,:]],[line2.vertices[-1,:]]])
     sameLine = np.all(line1.vertices==line2.vertices) or np.all(line1.vertices == line2.vertices[:,-1:None:-1])
@@ -455,8 +499,6 @@ def splitFaces(polygons,lines, count=0):
         polygon = polygons[ii]
         newPolygons.append(polygon)
         for jj in range(len(lines)):
-            # if count==0 and jj==1:
-            #pdb.set_trace()
             line = lines[jj]
             newPolys=list(polygonize(polygon.boundary.union( line ) ) )
             
@@ -466,8 +508,6 @@ def splitFaces(polygons,lines, count=0):
                 newPolys2 = (splitFaces(newPolys,lines,count=count+1))
                 newPolygons.extend(newPolys2)
                 break
-                #polygons.extend(newPolys)
-                #polygon = polygons[ii]
                 
     print(count)        
     return newPolygons
@@ -571,7 +611,81 @@ def _readHolesFromFile(numberOfVertices,numberOfEdges,numberOfHoles,fileLines):
 
 
 
-
+def joinPlines_(pLines, isClosed):
+    '''
+    DEFUNCT
+	Function to join polylines together.
+	
+	Parameters
+    ----------
+    pLines : List
+        List of matplotlib.path objects, each representing a polyline
+	isClosed : List
+		List of booleans corresponding to the pslg entities. 'true' forces the 
+		pslg to close the entity, 'false' does not
+		
+    Returns
+    -------
+    joinedPLines : List
+        Reduced list of matplotlib.path objects. The polylines from the input have been joined if any endpoints overlap.
+    isClosed : List
+        Same as input, only modified if the joining process results in a closed polygon
+    '''
+    ignoreArray = np.zeros([len(pLines),1],dtype=bool)
+    for ii,pLine in enumerate(pLines):
+        if ignoreArray[ii]:
+            continue
+        continueLoop = True
+        maximumPotentialConnections = 0
+        while continueLoop:
+            maximumPotentialConnections = len(pLines)-ii-1
+            if maximumPotentialConnections == 0:
+                continueLoop=False
+            for jj in range(ii+1,len(pLines)):
+                connectionId = _getConnectionId(pLine,pLines[jj])
+                print connectionId
+                if connectionId == 0 or ignoreArray[jj]:
+                    maximumPotentialConnections-=1
+                    if maximumPotentialConnections == 0:
+                        continueLoop=False
+                elif connectionId == 1:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:-1,:]))
+                    isClosed[ii] = True
+                    ignoreArray[jj] = True
+                    continueLoop = False
+                elif connectionId == 2:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-2::-1,:]))
+                    isClosed[ii] = True
+                    ignoreArray[jj] = True
+                    continueLoop=False
+                elif connectionId == 3:
+                    pLine.vertices = np.vstack((pLines[jj].vertices[-1:1:-1,:],pLine.vertices))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 4:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[-1:1:-1,:]))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 5:
+                    pLine.vertices = np.vstack((pLines[jj].vertices[:-1,:],pLine.vertices))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 6:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 7:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
+                    ignoreArray[jj] = True
+                    break
+                elif connectionId == 8:
+                    pLine.vertices = np.vstack((pLine.vertices,pLines[jj].vertices[1:,:]))
+                    ignoreArray[jj] = True
+                    break
+                    
+    joinedPLines = list(compress(pLines,~ignoreArray))
+    isClosed = list(compress(isClosed,~ignoreArray))
+    return joinedPLines,isClosed
 
 
 
