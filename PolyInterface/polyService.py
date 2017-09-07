@@ -36,12 +36,17 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList.vertices()) for vertexList in pLines)
     vertices = np.zeros([0,2])
-    boundaryFlags = np.zeros([numberOfVertices,1],dtype='int32')
+    boundaryFlags = np.zeros([0,1],dtype='int32')
     edges = []
-
+    pdb.set_trace()
     
     for ii in range(len(pLines)):   
         vertices = np.vstack((vertices,pLines[ii].vertices()))
+        if ii == indexOfBoundary:
+            boundaryFlags = np.vstack((boundaryFlags,np.ones([len(pLines[ii].vertices()),1])))
+        else:
+            boundaryFlags = np.vstack((boundaryFlags,np.zeros([len(pLines[ii].vertices()),1])))
+    pdb.set_trace()
     jj = 1
     for ii in range(len(pLines)):
         jStart = jj
@@ -354,7 +359,7 @@ def _doJoin(line,otherLine,connectionId):
     elif connectionId == 8:
         vertices = np.vstack((line.vertices(),otherLine.vertices()[1:-1,:]))
         isClosed = True
-    outLine = CustomLineString(vertices)
+    outLine = CustomLineString(vertices,isClosed)
     return outLine,isClosed
     
 def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
@@ -399,7 +404,7 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
         if ii in internalIgnoreList:
             continue
         line = lines[ii]
-        newClosedList.append(isClosedList[ii])
+        newClosedList.append(line.is_closed)
         newLines.append(line)
         for jj in range(len(otherLines)):
             if jj in ignoreList:
@@ -411,6 +416,7 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
             if connectionId > 2 and connectionId < 9:
                 
                 joinedPline,isClosed = _doJoin(line,otherLine,connectionId)
+                
                 ignoreList.append(jj)
                 ignoreList.append(ii)
                 internalIgnoreList.append(jj)
