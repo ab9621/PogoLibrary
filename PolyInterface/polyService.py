@@ -31,31 +31,29 @@ from matplotlib.collections import LineCollection
 from itertools import compress
 from shapely.ops import polygonize   
 from shapely.geometry import LineString,Polygon
+from CustomLineString import CustomLineString
 def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
-    numberOfVertices = sum(len(vertexList) for vertexList in pLines)
-    vertices = np.zeros([numberOfVertices,2])
+    numberOfVertices = sum(len(vertexList.vertices()) for vertexList in pLines)
+    vertices = np.zeros([0,2])
     boundaryFlags = np.zeros([numberOfVertices,1],dtype='int32')
     edges = []
-    for ii in range(len(pLines)):            
-        for kk in range(len(pLines[ii].vertices)):
-            if ii==indexOfBoundary:
-                vertices[jj-1,:] = [pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1]]
-                boundaryFlags[jj-1] = 1
-            else:
-                vertices[jj-1,:] = [pLines[ii].vertices[kk][0],pLines[ii].vertices[kk][1]]
-                boundaryFlags[jj-1] = 0
-            jj+=1
+
+    
+    for ii in range(len(pLines)):   
+        vertices = np.vstack((vertices,pLines[ii].vertices()))
     jj = 1
     for ii in range(len(pLines)):
         jStart = jj
-        for kk in range(len(pLines[ii])-1):
+        for kk in range(len(pLines[ii].vertices())-1):
             edges.append([jj,jj+1])
             jj+=1
         if isClosed[ii]:
             edges.append([jj,jStart])
         jj+=1
     edges = np.array(edges)
+
+    pdb.set_trace() 
     return vertices,boundaryFlags,edges
 
 def writePoly2d(polyInstance,filePath):
@@ -105,7 +103,7 @@ def writePoly2d(polyInstance,filePath):
             f.write(" ")
             polyInstance.holes[ii,:].tofile(f," ")
             f.write("\n")
-            
+           
     return 0    
 
     
@@ -124,12 +122,19 @@ def findOuterBoundaryIndex(pLines):
     ii : integer
         The index corresponding to the enclosing boundary in the PSLG
     '''
+    pdb.set_trace()
+    if len(pLines) == 1:
+        return 0
     for ii in range(len(pLines)):
-        jj = 0
-        while np.all(pLines[ii].intersects_path(pLines[jj],filled=True)) or jj==ii:
-            if jj == len(pLines)-1:
+        for jj in range(len(pLines)):
+            if jj == ii:
+                jj+=1
+            elif Polygon(pLines[ii]).contains(pLines[jj]):
+                jj+=1
+            else: break
+            
+            if jj == len(pLines):
                 return ii
-            jj+=1
     errStr = "Must have one entity (LWPOLYLINE,CIRCLE) defining the outer boundary."
     raise ValueError(errStr)
     
@@ -162,7 +167,7 @@ def findPlines(entities,elementSize,precision = False):
         if entities[ii].dxftype == 'LWPOLYLINE':
             
             vertices = np.asarray(entities[ii].points)
-            pdb.set_trace()
+            
             if entities[ii].is_closed:
                 isClosed.append(True)
             elif autoClose(entities[ii].points):
@@ -180,11 +185,11 @@ def findPlines(entities,elementSize,precision = False):
                 refinedVertices = np.vstack((refinedVertices,refineLine(vertex[0],vertex[1],vertices[jj+1][0],vertices[jj+1][1],elementSize,False)))
             
             refinedVertices = setPrecision(refinedVertices,elementSize,precision)
-            pLines.append(mplPath.Path(refinedVertices))
+            pLines.append(CustomLineString(refinedVertices))
             entCount = entCount+1
         elif entities[ii].dxftype == 'CIRCLE' or entities[ii].dxftype == 'ARC':
             pLine = convertToPolyline(entities[ii],elementSize)
-            pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)
+            pLine = CustomLineString(setPrecision(pLine.vertices(),elementSize,precision))
             pLines.append(pLine)
             if entities[ii].dxftype == 'CIRCLE':
                 isClosed.append(True)
@@ -194,12 +199,12 @@ def findPlines(entities,elementSize,precision = False):
             
             
         elif entities[ii].dxftype == 'LINE':
-            pLine = mplPath.Path(refineLine(entities[ii].start[0],
+            pLine = CustomLineString(refineLine(entities[ii].start[0],
                                             entities[ii].start[1],
                                             entities[ii].end[0],
                                             entities[ii].end[1],
                                             elementSize))
-            pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)                                       
+            pLine = CustomLineString(setPrecision(pLine.vertices(),elementSize,precision))
             pLines.append(pLine)
             isClosed.append(False)            
             entCount = entCount+1
@@ -307,7 +312,7 @@ def createArcPolyline(startTheta,endTheta,radius,centre,elementSize,isArc = True
         polyline = np.zeros([nTheta-1,2])
         polyline[:,0] = radius * np.cos(theta[:-1]) + centre[0]
         polyline[:,1] = radius * np.sin(theta[:-1]) + centre[1]        
-    polyline = mplPath.Path(polyline)
+    polyline = CustomLineString(polyline)
     return polyline
 
 def _doJoin(line,otherLine,connectionId):
@@ -332,24 +337,25 @@ def _doJoin(line,otherLine,connectionId):
     
     '''
     if connectionId == 3:
-        line.vertices = np.vstack((otherLine.vertices[-1:0:-1,:],line.vertices))
+        vertices = np.vstack((otherLine.vertices()[-1:0:-1,:],line.vertices()))
         isClosed = False
     elif connectionId == 4:
-        line.vertices = np.vstack((line.vertices,otherLine.vertices[-2::-1,:]))
+        vertices = np.vstack((line.vertices(),otherLine.vertices()[-2::-1,:]))
         isClosed = False
     elif connectionId == 5:
-        line.vertices = np.vstack((otherLine.vertices[:-1,:],line.vertices))
+        vertices = np.vstack((otherLine.vertices()[:-1,:],line.vertices()))
         isClosed = False
     elif connectionId == 6:
-        line.vertices = np.vstack((line.vertices,otherLine.vertices[1:,:]))
+        vertices = np.vstack((line.vertices(),otherLine.vertices()[1:,:]))
         isClosed = False
     elif connectionId == 7:
-        line.vertices = np.vstack((otherLine.vertices[-2:1:-1,:],line.vertices))
+        vertices = np.vstack((otherLine.vertices()[-2:1:-1,:],line.vertices()))
         isClosed = True
     elif connectionId == 8:
-        line.vertices = np.vstack((line.vertices,otherLine.vertices[1:-1,:]))
+        vertices = np.vstack((line.vertices(),otherLine.vertices()[1:-1,:]))
         isClosed = True
-    return line,isClosed
+    outLine = CustomLineString(vertices)
+    return outLine,isClosed
     
 def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
     '''
@@ -383,14 +389,15 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
     This is very primitive, and doesn't deal with intersections in any way (where points that are not end points coincide, 
     or lines cross in any way). 
     '''
+    
     if level == 0:
         ignoreList = []
     newLines = []
     newClosedList = []
     internalIgnoreList = []
-    if level==0:
-        pdb.set_trace()
     for ii in range(len(lines)):
+        if ii in internalIgnoreList:
+            continue
         line = lines[ii]
         newClosedList.append(isClosedList[ii])
         newLines.append(line)
@@ -399,26 +406,28 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
                 continue
             otherLine = otherLines[jj]
             connectionId = _getConnectionId(line,otherLine)
+            print('level {}'.format(level))
+            print('CID {}'.format(connectionId))
             if connectionId > 2 and connectionId < 9:
-                print(connectionId)
-                print(jj in ignoreList)
+                
                 joinedPline,isClosed = _doJoin(line,otherLine,connectionId)
                 ignoreList.append(jj)
                 ignoreList.append(ii)
                 internalIgnoreList.append(jj)
                 internalIgnoreList.append(ii)
-                newLines.pop(-1)
-                newClosedList.pop(-1)
-                plt.figure()
-                plt.plot(joinedPline.vertices[:,0],joinedPline.vertices[:,1],'.')
                 joinedPlineList,isClosed,ignoreList = joinPlines([joinedPline,],otherLines,isClosedList,ignoreList = ignoreList,level = level+1)
+                if joinedPlineList:
+                    newLines.pop(-1)
+                    newClosedList.pop(-1)
+                    
                 newLines.extend(joinedPlineList)
                 newClosedList.extend(isClosed)
-                if level == 0:
-                     pdb.set_trace()
                 break
-            
-    
+            elif connectionId == 9:
+                newLines.pop(-1)
+                newClosedList.pop(-1)
+                break
+    print('Number of Lines {}'.format(len(newLines)))
     return newLines,newClosedList,ignoreList
 
 def _getConnectionId(line1, line2):
@@ -449,17 +458,23 @@ def _getConnectionId(line1, line2):
                 8 : Both endpoints match in reverse order (first to last, last to first)
                 9 : Line2 is already part of Line1
     '''
-
-    line1EndPoints = np.array([[line1.vertices[0,:]],[line1.vertices[-1,:]]])
-    line2EndPoints = np.array([[line2.vertices[0,:]],[line2.vertices[-1,:]]])
-    sameLine = np.all(line1.vertices==line2.vertices) or np.all(line1.vertices == line2.vertices[:,-1:None:-1])
+    
+    line1EndPoints = np.array([[line1.vertices()[0,:]],[line1.vertices()[-1,:]]])
+    line2EndPoints = np.array([[line2.vertices()[0,:]],[line2.vertices()[-1,:]]])
+    sameLine = np.all(line1.vertices()==line2.vertices()) or np.all(line1.vertices() == line2.vertices()[:,-1:None:-1])
     firstMatch = np.all(line1EndPoints[0] == line2EndPoints[0])
     lastMatch = np.all(line1EndPoints[1] == line2EndPoints[1])
     beginToEndMatch = np.all(line1EndPoints[0] == line2EndPoints[1])
     endToBeginMatch = np.all(line1EndPoints[1] == line2EndPoints[0])
     connectId = -1
+    
     if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
         connectId =  0
+        
+    elif line1.contains(line2) and not sameLine:
+        connectId = 9
+    elif line2.contains(line1) and not sameLine:
+        connectId = 10
     elif firstMatch and lastMatch:
         if sameLine:
             connectId = 1
@@ -478,6 +493,7 @@ def _getConnectionId(line1, line2):
         connectId =  5
     elif endToBeginMatch:
         connectId =  6
+        
     return connectId
         
 def findFaces(pLines,isClosed):
@@ -486,9 +502,9 @@ def findFaces(pLines,isClosed):
     for ii in range(len(pLines)):
         pLine = pLines[ii]
         if isClosed[ii]:
-            polygons.append(Polygon(pLine.vertices))
+            polygons.append(Polygon(pLine.vertices()))
         else:
-            lines.append(LineString(pLine.vertices))
+            lines.append(CustomLineString(pLine.vertices()))
     
     return polygons,lines
     
@@ -541,7 +557,6 @@ def plotPoly(polyInstance,filePath=None):
         
     #lineData=LineCollection((((0,1),(1,1)),((0,0),(1,1))))
     lineData = LineCollection(tuple(testList))
-    pdb.set_trace()
     ax.add_collection(lineData)
     
     plt.axis('equal')

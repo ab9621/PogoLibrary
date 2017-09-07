@@ -10,6 +10,8 @@ import polyService as pS
 import pdb
 import matplotlib.path as mplPath
 import arcConversions as aC
+from CustomLineString import CustomLineString
+from collections import Iterable
 class Poly:
     vertices = np.empty([0,2])
     vertexIDs = np.empty([0,1])
@@ -60,8 +62,9 @@ class Poly:
                 return
             entities = dxfFile.entities
             pLines,isClosed = pS.findPlines(entities,self.elementSize,precision=5)
+            pdb.set_trace()
             pLines,isClosed,_ = pS.joinPlines(pLines,pLines,isClosed,ignoreList = [])
-            
+            pdb.set_trace()
             holes = pS.findHoles(entities)
             indexOfBoundary=pS.findOuterBoundaryIndex(pLines)
             [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
@@ -153,7 +156,7 @@ class Poly:
         self.numberOfHoles = 0
         self.numberOfBoundaryVertices = 0
         
-    def addArc(self,arcPoint1,arcPoint2,arcPoint3,type = '3pt',boundary = False):
+    def addArc(self,arcPoint1,arcPoint2,arcPoint3,arcType = '3pt',boundary = False):
         #http://paulbourke.net/geometry/circlesphere/
         # 
         #     _do3PtArc()
@@ -163,73 +166,23 @@ class Poly:
         #     _doSCAArc()
         # elif type.lower() == 'scl'
         #     _doSCLArc()
-        if type.lower() == '3pt':
-            x,y,startTheta,endTheta = ac.ThreePointToCenterAndAngles(arcPoint1,arcPoint2,arcPoint3)
-        elif type.lower() == 'sce':
-            x,y,startTheta,endTheta = ac.SCEToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
-        elif type.lower() == 'sca':
-            x,y,startTheta,endTheta = ac.SCAToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
-        elif type.lower() == 'scl':
-            x,y,startTheta,endTheta = ac.SCLToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
-        if not boundary:
-            indexOfBoundary = -1
-        else:
-            indexOfBoundary = 0
-        r = np.sqrt((x-p1[0])**2+(y-p1[1])**2)
-        polyline = pS.createArcPolyline(startTheta,endTheta,r,[x,y],self.elementSize)
-        pointsNotInExisting = np.logical_not(mplPath.Path(self.vertices).contains_points(polyline.vertices))
-        isNewBoundary = np.any(pointsNotInExisting)
-        if isNewBoundary
-        pdb.set_trace()
-        [vertices,boundaryFlags,edges] = pS.polylinesToPSLG([polyline,],[False,],indexOfBoundary)
+        if arcType.lower() == '3pt':
+            x,y,startTheta,endTheta,radius = aC.ThreePointToCenterAndAngles(arcPoint1,arcPoint2,arcPoint3)
+        elif arcType.lower() == 'sce':
+            x,y,startTheta,endTheta,radius = aC.SCEToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
+        elif arcType.lower() == 'sca':
+            x,y,startTheta,endTheta,radius = aC.SCAToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
+        elif arcType.lower() == 'scl':
+            x,y,startTheta,endTheta,radius = aC.SCLToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
+        
+        polyline = pS.createArcPolyline(startTheta,endTheta,radius,[x,y],self.elementSize)
+        existingLineString = CustomLineString(self.vertices)
+        
+        pointsNotInExisting = np.logical_not(existingLineString.contains(polyline))
+        if np.any(pointsNotInExisting):
+            errMsg = 'Additional geometry must be fully contained within existing geometry.'
+            raise ValueError(errMsg)
+        [vertices,boundaryFlags,edges] = pS.polylinesToPSLG([polyline,],[False,],-1)
         self.addVertices(vertices,boundaryFlags)
         self.addEdges(edges)
-        
-def ThreePointToCenterAndAngles(p1,p2,p3):
-    def _getDiffs():
-        dy1 = float(p2[1]-p1[1])
-        dx1 = float(p2[0]-p1[0])
-        dy2 = float(p3[1]-p2[1])
-        dx2 = float(p3[0]-p2[0])
-        return dy1,dx1,dy2,dx2
-    dy1,dx1,dy2,dx2 = _geqtDiffs()
-    if dx1 == 0:
-        p2,p3 = p3,p2
-        dy1,dx1,dy2,dx2 = _getDiffs()
-    elif dx2 == 0:
-        p1,p2 = p2,p1
-        dy1,dx1,dy2,dx2 = _getDiffs()
-        
-    grad1 = dy1/dx1
-    grad2 = dy2/dx2
-    denom = 2*(grad2-grad1)
-    if denom == 0 or np.any([dx1,dx2]==0):
-        errMsg = 'Points lie on parallel lines. No circle could be found'
-        raise ValueError(errMsg)
-    numerator = grad1*grad2*(p1[1]-p3[1])+grad2*(p1[0]+p2[0])-grad1*(p2[0]+p3[0])
-    x = numerator / denom
-    y = -1/grad1*(x-(p1[0]+p2[0])/2)+(p1[1]+p2[1])/2
-    
-    
-    th1,th2,th3 = getAnglesRelativeToCenter(p1,[x,y]),getAnglesRelativeToCenter(p2,[x,y]),getAnglesRelativeToCenter(p3,[x,y])
-    startTheta = min([th1,th2,th3])
-    endTheta = max([th1,th2,th3])
-    return x,y,startTheta,endTheta
-
-def SCEToCentreAndAngles(p1,p2,p3):
-    startTheta,endTheta = getAnglesRelativeToCentre(p1,p2),getAnglesRelativeToCentre(p3,p2)
-    return p2[0],p2[1],startTheta,endTheta
-
-def SCEToCentreAndAngles(p1,p2,p3):
-    startTheta = getAnglesRelativeToCentre(p1,p2)
-    return p2[0],p2[1],startTheta,p3
-    
-def SCLToCentreAndAngles(p1,p2,p3):
-    startTheta = getAnglesRelativeToCentre(p1,p2)
-    return p2[0],p2[1],startTheta,p3
-
-def getAnglesRelativeToCenter(point,centre):
-    dy = point[1]-centre[1]    
-    dx = point[0]-centre[0]
-    th = np.arctan2(dy,dx)
-    return th
+ 

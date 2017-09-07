@@ -1,4 +1,5 @@
-        
+import numpy as np
+
 def ThreePointToCenterAndAngles(p1,p2,p3):
     def _getDiffs():
         dy1 = float(p2[1]-p1[1])
@@ -6,7 +7,7 @@ def ThreePointToCenterAndAngles(p1,p2,p3):
         dy2 = float(p3[1]-p2[1])
         dx2 = float(p3[0]-p2[0])
         return dy1,dx1,dy2,dx2
-    dy1,dx1,dy2,dx2 = _geqtDiffs()
+    dy1,dx1,dy2,dx2 = _getDiffs()
     if dx1 == 0:
         p2,p3 = p3,p2
         dy1,dx1,dy2,dx2 = _getDiffs()
@@ -28,21 +29,26 @@ def ThreePointToCenterAndAngles(p1,p2,p3):
     th1,th2,th3 = getAnglesRelativeToCenter(p1,[x,y]),getAnglesRelativeToCenter(p2,[x,y]),getAnglesRelativeToCenter(p3,[x,y])
     startTheta = min([th1,th2,th3])
     endTheta = max([th1,th2,th3])
-    return x,y,startTheta,endTheta
+    
+    radius = np.sqrt((p1[0]-x)*(p1[0]-x)+(p1[1]-y)*(p1[1]-y))
+    return x,y,startTheta,endTheta,radius
 
 def SCEToCentreAndAngles(p1,p2,p3):
     startTheta,endTheta = getAnglesRelativeToCentre(p1,p2),getAnglesRelativeToCentre(p3,p2)
-    return p2[0],p2[1],startTheta,endTheta
+    radius = np.sqrt((p1[0]-p2[0])*(p1[0]-p2[0])+(p1[1]-p2[1])*(p1[1]-p2[1]))
+    return p2[0],p2[1],startTheta,endTheta,radius
 
-def SCEToCentreAndAngles(p1,p2,p3):
+def SCAToCentreAndAngles(p1,p2,p3):
     startTheta = getAnglesRelativeToCentre(p1,p2)
-    return p2[0],p2[1],startTheta,p3
+    radius = np.sqrt((p1[0]-p2[0])*(p1[0]-p2[0])+(p1[1]-p2[1])*(p1[1]-p2[1]))
+    return p2[0],p2[1],startTheta,p3,radius
     
 def SCLToCentreAndAngles(p1,p2,p3):
     startTheta = getAnglesRelativeToCentre(p1,p2)
     radius = np.sqrt((p1[0]-p2[0])**2+(p1[1]+p2[1])**2)
     dTh = p3/radius
-    return p2[0],p2[1],startTheta,startTheta+dTh
+    radius = np.sqrt((p1[0]-p2[0])*(p1[0]-p2[0])+(p1[1]-p2[1])*(p1[1]-p2[1]))
+    return p2[0],p2[1],startTheta,startTheta+dTh,radius
 
 def getAnglesRelativeToCenter(point,centre):
     dy = point[1]-centre[1]    
