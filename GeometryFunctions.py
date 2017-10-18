@@ -226,7 +226,80 @@ def block3DPolyFormat(x,y,z,origin=[0.,0.,0.]):
               [2,3,7,6]]) + 1
     
     return nodes, faces
+
+def rect2DPolyFormat(x,y,origin=[0.,0.,0.]):
+    '''
+    Function to generate the information of a rectangle. Needs documenting.
+    '''
+    corners = [origin,
+               [origin[0] + x, origin[1]],
+               [origin[0] + x, origin[1] + y],
+               [origin[0], origin[1] + y]]
+               
+    segments = [[1,2],
+                [2,3],
+                [3,4],
+                [4,1]]
+                
+    return corners, segments
     
+def write2DRectanglePolyFile(x,y,fileName,origin=[0.,0.]):
+    '''
+    Function to generate a .poly file of a 2D rectangle.
+    
+    Parameters
+    ----------
+    x : float
+        The x extent of the block.
+        
+    y : float
+        The y extent of the block.
+        
+    fileName : string
+        The name of the .poly file to be saved.
+        
+    origin : iterable, float, optional
+        The coordinate of the node nearest the origin of the global
+        coordinate system. The default is the origin of the global coordinate
+        system, [0., 0., 0.]
+    
+    Returns
+    -------
+    None
+    
+    '''
+    if fileName[-5:] != '.poly':
+        fileName += '.poly'
+    
+    corners, segments = rect2DPolyFormat(x,y,origin)
+    
+    with open(fileName, 'w') as f:
+        # Write out the corners
+        f.write('# <Number of vertices> <Number of dimensions> <Number of attributes> <Boundary markers 0 or 1>\n')
+        f.write('{} 2 0 0\n'.format(len(corners)))
+        
+        for c1 in range(len(corners)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*corners[c1])
+            f.write(string)
+        
+        # Write out the segments
+        f.write('# <Number of segments> <Boundary markers 0 or 1>\n')
+        f.write('{} 0\n'.format(len(segments)))
+        
+        for c1 in range(len(segments)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*segments[c1])
+            f.write(string)
+        
+        # Write out the holes - none in this case
+        f.write('0\n')
+        
+        #Write out the number of regions
+        f.write('0\n')
+        
+    return
+            
 def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
     '''
     Function to generate a .poly file of a 3D block.
@@ -252,11 +325,7 @@ def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
     
     Returns
     -------
-    nodes : array, float
-        The coordinates of the nodes of the block
-        
-    faces : array, int
-        The indices of the nodes that make the faces of the block.
+    None
     '''
     
     if fileName[-5:] != '.poly':

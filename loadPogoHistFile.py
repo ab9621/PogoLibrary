@@ -97,7 +97,6 @@ def loadPogoHistory(fileName):
         header = struct.unpack('20s', f.read(20))
         header = header[0].replace('\x00','')
         print header
-        #return header
         
         if header == '%pogo-hist1.0':
             fileVer = 1.0

@@ -10,7 +10,8 @@ import subprocess
 import time
 import os
 
-def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, dimensions=2):
+def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, 
+              dimensions=2, precision=32):
     '''
     Function to run Pogo jobs from Abaqus input files without having to go
     through the command line and does timings on the jobs as well. This also 
@@ -32,7 +33,8 @@ def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, dimens
         Default is False.
         
     benchmark : boolean, optional
-        Whether to return the timings, default is False which is not 
+        Whether to return the timings for the various stages. Default is 
+        False which is to return any.♠
         
     cleanup : boolean, optional
         Whether to delete the intermediate files to save space or not.
@@ -42,6 +44,11 @@ def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, dimens
     dimensions : float, optional
         The number of dimensions of the problem, default is 2, the other
         option is 3.
+        
+    precision : int, optional
+        Whether to run the 32-bit version of Pogo (precision=32) or the
+        64-bit version (precision=64). Note that there is no 64-bit version
+        of 3D Pogo. Default is 32.
         
         
     Returns
@@ -60,6 +67,12 @@ def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, dimens
     
     if dimensions not in [2,3]:
         raise ValueError('Number of dimensions must be 2 or 3')
+        
+    if precision not in [32, 64]:
+        raise ValueError('Precision must be 32 or 64')
+        
+    if dimensions == 3 and precision == 64:
+        raise ValueError('There is no 64-bit version of 3D Pogo.')
     
     t1 = time.clock()
     #input_name should be e.g. 'inputfile' NOT 'inputfile.inp'
@@ -74,10 +87,21 @@ def SubmitRun(input_name, path, abaqus=False, benchmark=0, cleanup=False, dimens
         subprocess.call('pogoBlock {}.pogo-inp'.format(input_name), cwd=path)
         t3 = time.clock()
         print 'Block time = {}'.format(t3-t2)
-
-        subprocess.call('pogoSolve {} -o'.format(input_name), cwd=path)
-        t4 = time.clock()
-        print 'Solve time = {}'.format(t4-t3)
+        
+        if precision == 32:
+            subprocess.call('pogoSolve {} -o'.format(input_name), cwd=path)
+            t4 = time.clock()
+            print 'Solve time = {}'.format(t4-t3)
+        
+        elif precision == 64:
+            subprocess.call('pogoSolve64 {} -o'.format(input_name), cwd=path)
+            t4 = time.clock()
+            print 'Solve time = {}'.format(t4-t3)
+            
+        else:
+            raise ValueError('Somehow you got here. Congratulations. \
+            You should not have been able to. The precision is wrong.')
+            
     
     if dimensions == 3:
         t2 = time.clock()
