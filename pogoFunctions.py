@@ -868,10 +868,19 @@ def plotFieldData(fieldData, increment, component='magnitude',
         data = fieldData.uz[:,increment]
     
     if fieldData.nDims == 2:
-        #scatter plot isn't going to work
-        #ax.scatter(fieldData.nodePos[0], fieldData.nodePos[1], c=data)
+        #try an interpolator - this works
+        inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
+        interp = si.LinearNDInterpolator(inputCoords, data)
+        nx = 200
+        ny = 200
+        xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
+        yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
         
-        #try an interpolator
+        xs, ys = np.meshgrid(xBase, yBase)
+        
+        finalData = interp(xs, ys)
+        
+        ax.imshow(finalData)
         
     elif fieldData.nDims == 3:
         print 'Not implemented yet...'
@@ -882,11 +891,6 @@ def plotFieldData(fieldData, increment, component='magnitude',
     else:
         return
     
-    
-    
-    
-    
-
 def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
     '''
     Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
