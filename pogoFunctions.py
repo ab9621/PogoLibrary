@@ -703,20 +703,6 @@ def waveVelocity(E, nu, rho):
     cs = np.sqrt(E/(2.*(1+nu)*rho))
     return cp, cs
    
-def createRectOrientation(phi,addRotDim=3,addRotAngle=0):
-    xAx = np.array([1,0,0])
-    yAx = np.array([0,1,0])
-    origin = np.array([0,0,0])
-    
-    R = np.array([[np.cos(phi), -np.sin(phi), 0],
-                  [np.sin(phi),  np.cos(phi), 0],
-                  [0, 0, 1]])
-    
-    xPrime = np.matmul(R,xAx)
-    yPrime = np.matmul(R,yAx)
-    orOut = np.hstack((xPrime, yPrime, origin, addRotDim,addRotAngle))
-    return orOut   
-    
 def minEdgeLength(nodes, elements):
     '''
     Function to find the minimum edge length of any element in a mesh.
@@ -900,3 +886,39 @@ def plotFieldData(fieldData, increment, component='magnitude',
     
     
     
+
+def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
+    '''
+    Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
+    
+    Parameters
+    ----------
+    phis: iterable containing desired rotation angles
+    origin: origin of the coordinate system
+    addRotDim: dimension of any additional rotation (default is 3; z-axis)
+    addRotAngle: scalar defining additional rotation about axis defined by addRotDim
+    NOTE: the additional rotation is a hangover from more complex rotation types (e.g. cylindrical);
+    everything should be acheivable with the first two arguments.
+    
+    Returns
+    -------
+    orOutList: list of rectangular orientations defined by [ax, ay, az, bx, by, bz, ox, oy, oz] 
+               where (ax,ay,az) is the transformed x-axis, (bx,by,bz) is the transformed y-axis
+               and (ox,oy,oz) is the transformed origin.
+    
+    '''
+    orOutList = []
+    for ii in range(len(phis)):
+        phi = phis[ii]
+        xAx = np.array([1,0,0])
+        yAx = np.array([0,1,0])
+        
+        R = np.array([[np.cos(phi), -np.sin(phi), 0],
+                    [np.sin(phi),  np.cos(phi), 0],
+                    [0,                  0, 1]])
+        
+        xPrime = np.matmul(R,xAx)
+        yPrime = np.matmul(R,yAx)
+        orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
+        orOutList.append(orOut)
+    return orOutList   

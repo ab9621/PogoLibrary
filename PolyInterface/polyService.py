@@ -29,7 +29,8 @@ import matplotlib.pyplot as plt
 import pdb
 from matplotlib.collections import LineCollection 
 from itertools import compress
-   
+from shapely.ops import polygonize   
+from shapely.geometry import LineString,Polygon
 def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList) for vertexList in pLines)
@@ -53,9 +54,9 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
             jj+=1
         if isClosed[ii]:
             edges.append([jj,jStart])
-            jj+=1
         jj+=1
     edges = np.array(edges)
+    pdb.set_trace()
     return vertices,boundaryFlags,edges
 
 def writePoly2d(polyInstance,filePath):
@@ -158,11 +159,12 @@ def findPlines(entities,elementSize,precision = False):
     numberOfEntities = len(entities)
     pLines = []
     isClosed = []
-    jj=0
+    entCount=0
     for ii in range(numberOfEntities):
         if entities[ii].dxftype == 'LWPOLYLINE':
             
             vertices = np.asarray(entities[ii].points)
+            pdb.set_trace()
             if entities[ii].is_closed:
                 isClosed.append(True)
             elif autoClose(entities[ii].points):
@@ -181,7 +183,7 @@ def findPlines(entities,elementSize,precision = False):
             
             refinedVertices = setPrecision(refinedVertices,elementSize,precision)
             pLines.append(mplPath.Path(refinedVertices))
-            jj = jj+1
+            entCount = entCount+1
         elif entities[ii].dxftype == 'CIRCLE' or entities[ii].dxftype == 'ARC':
             pLine = convertToPolyline(entities[ii],elementSize)
             pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)
@@ -190,7 +192,7 @@ def findPlines(entities,elementSize,precision = False):
                 isClosed.append(True)
             else:
                 isClosed.append(False)
-            jj = jj+1
+            entCount = entCount+1
             
             
         elif entities[ii].dxftype == 'LINE':
@@ -202,14 +204,14 @@ def findPlines(entities,elementSize,precision = False):
             pLine.vertices = setPrecision(pLine.vertices,elementSize,precision)                                       
             pLines.append(pLine)
             isClosed.append(False)            
-            jj = jj+1
+            entCount = entCount+1
         elif entities[ii].dxftype == 'POINT':
             continue
         else:
-            warnStr="Currently only LWPOLYLINE,CIRCLE,ARC and LINE supported for boundary definition. Found {}".format(entities[ii].dxftype)
+            warnStr="Currently only LWPOLYLINE,CIRCLE,ARC and LINE supported. Found {}".format(entities[ii].dxftype)
             warnings.warn(warnStr)
         
-    successStr = "Found {} convertible entities.".format(jj)
+    successStr = "Found {} convertible entities.".format(entCount)
     print(successStr)
     return (pLines,isClosed)
 
@@ -340,6 +342,7 @@ def joinPlines(pLines, isClosed):
                 continueLoop=False
             for jj in range(ii+1,len(pLines)):
                 connectionId = _getConnectionId(pLine,pLines[jj])
+                print connectionId
                 if connectionId == 0 or ignoreArray[jj]:
                     maximumPotentialConnections-=1
                     if maximumPotentialConnections == 0:
@@ -374,7 +377,6 @@ def joinPlines(pLines, isClosed):
     joinedPLines = list(compress(pLines,~ignoreArray))
     isClosed = list(compress(isClosed,~ignoreArray))
     return joinedPLines,isClosed
-
 def _getConnectionId(line1, line2):
     '''
 	Function to return the type of connection between polylines
@@ -399,7 +401,11 @@ def _getConnectionId(line1, line2):
                 4 : The last vertex of Line1 is coincident with the last vertex of Line2
                 5 : The first vertex of Line1 is coincident with the last vertex of Line2
                 6 : The last vertex of Line1 is coincident with the first vertex of Line2
+                7 : Both endpoints match in same order (first to first, last to last)
+                8 : Both endpoints match in reverse order (first to last, last to first)
     '''
+
+    pdb.set_trace()
     line1EndPoints = np.array([[line1.vertices[0,:]],[line1.vertices[-1,:]]])
     line2EndPoints = np.array([[line2.vertices[0,:]],[line2.vertices[-1,:]]])
     sameLine = np.all(line1.vertices==line2.vertices) or np.all(line1.vertices == line2.vertices[:,-1:None:-1])
@@ -407,16 +413,15 @@ def _getConnectionId(line1, line2):
     lastMatch = np.all(line1EndPoints[1] == line2EndPoints[1])
     beginToEndMatch = np.all(line1EndPoints[0] == line2EndPoints[1])
     endToBeginMatch = np.all(line1EndPoints[1] == line2EndPoints[0])
-    
     connectId = -1
     if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
         connectId =  0
-    elif firstMatch and lastMatch and sameLine:
+    elif firstMatch and lastMatch:
         if sameLine:
             connectId = 1
         else:
             connectId = 7
-    elif beginToEndMatch and endToBeginMatch and sameLine:
+    elif beginToEndMatch and endToBeginMatch:
         if sameLine:
             connectId =  2
         else:
@@ -430,6 +435,42 @@ def _getConnectionId(line1, line2):
     elif endToBeginMatch:
         connectId =  6
     return connectId
+        
+def findFaces(pLines,isClosed):
+    polygons = []
+    lines = []
+    for ii in range(len(pLines)):
+        pLine = pLines[ii]
+        if isClosed[ii]:
+            polygons.append(Polygon(pLine.vertices))
+        else:
+            lines.append(LineString(pLine.vertices))
+    
+    return polygons,lines
+    
+def splitFaces(polygons,lines, count=0):
+    newPolygons = []
+    numPoly = len(polygons)
+    for ii in range(len(polygons)):
+        polygon = polygons[ii]
+        newPolygons.append(polygon)
+        for jj in range(len(lines)):
+            # if count==0 and jj==1:
+            #pdb.set_trace()
+            line = lines[jj]
+            newPolys=list(polygonize(polygon.boundary.union( line ) ) )
+            
+            if len(newPolys)>1:
+                newPolygons.pop(-1)
+                
+                newPolys2 = (splitFaces(newPolys,lines,count=count+1))
+                newPolygons.extend(newPolys2)
+                break
+                #polygons.extend(newPolys)
+                #polygon = polygons[ii]
+                
+    print(count)        
+    return newPolygons
         
 def findHoles(entities):
     numberOfEntities = len(entities)
