@@ -893,7 +893,7 @@ def plotFieldData(fieldData, increment, component='magnitude',
         #try an interpolator - this works
         print 'Doing interpolation for plotting'
         inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
-        interp = si.LinearNDInterpolator(inputCoords, data)
+        interp = si.LinearNDInterpolator(inputCoords, data, fill_value=0.0)
         nx = 400
         ny = 340
         xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
