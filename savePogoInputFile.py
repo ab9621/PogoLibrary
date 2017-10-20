@@ -301,8 +301,8 @@ def writePogoInputFile(fileName,
             
         if min(materialTypeRefs) != 1:
             raise ValueError('materialTypeRefs must be 1 indexed.')
-            
-        materialTypeRefs = elementTypeRefs.astype('int32') #- 1
+        
+        materialTypeRefs = materialTypeRefs.astype('int32') - 1
         materialTypeRefs.tofile(f)
         
         ##### Element orientations
@@ -416,6 +416,7 @@ def writePogoInputFile(fileName,
                 dof = (boundaryConditions[c1*2]-1)*4 + boundaryConditions[c1*2+1]-1
                 dof = np.array([dof,], dtype='int32')
                 dof.tofile(f)
+                
         ##### Input signals
         nInputSignals = len(signals)
         nInputSignalsA = np.array([nInputSignals,], dtype='int32')

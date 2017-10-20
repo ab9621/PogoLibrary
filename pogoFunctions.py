@@ -38,7 +38,7 @@ def __criticalCalc__(a,b):
     else:
         return np.arcsin(tmp)
         
-def loadNodeFile(fileName, nDims=3):
+def loadNodeFile(fileName, nDims=3, regionAttributes=False):
     '''
     Function to load in a .node file as used with tetgen and triangle, store
     the nodes in an array of shape (nDimensions, nNodes) and return it.
@@ -48,6 +48,10 @@ def loadNodeFile(fileName, nDims=3):
     fileName : string
         The name of the .node file to read. The extension '.node' must be
         passed in fileName.
+        
+    regionAttributes : boolean, optional
+        Whether region attributes were specified in the generation of the 
+        mesh.
         
     Returns
     -------
@@ -60,13 +64,20 @@ def loadNodeFile(fileName, nDims=3):
     if nDims not in [2,3]:
         raise ValueError('The nodes must have 2 or 3 dimensions, not {}'.format(nDims))
     nodes = (np.genfromtxt(fileName, dtype='float64', skip_header=1)).T
-    if nDims == 3:
-        nodes = nodes[1:]
-    elif nDims == 2:
-        nodes = nodes[1:-1]
+    
+    if regionAttributes == False:
+        if nDims == 3:
+            nodes = nodes[1:]
+        elif nDims == 2:
+            nodes = nodes[1:-1]
+    else:
+        if nDims == 3:
+            nodes = nodes[1:-2]
+        elif nDims == 2:
+            nodes = nodes[1:-3]
     return nodes
     
-def loadElementFile(fileName):
+def loadElementFile(fileName, regionAttributes=False):
     '''
     Function to load in a .ele file as used with tetgen and triangle, store
     the nodes in an array of shape (nNodesPerElement, nElements) and return
@@ -76,6 +87,10 @@ def loadElementFile(fileName):
     ----------
     fileName : string
         The name of the .ele file to read.
+        
+    regionAttributes : boolean, optional
+        Whether region attributes were specified in the generation of the 
+        mesh.
         
     Returns
     -------
@@ -87,8 +102,15 @@ def loadElementFile(fileName):
         raise ValueError('File supplied is not .node file')
     
     elements = (np.genfromtxt(fileName, dtype='int32', skip_header=1)).T
-    elements = elements[1:]
-    return elements.astype('int32')
+    
+    if regionAttributes == False:
+        elements = elements[1:]
+        return elements.astype('int32')
+
+    else:
+        regionAttributes = np.copy(elements[-1])
+        elements = elements[1:-1]
+        return elements.astype('int32'), regionAttributes.astype('int32')
     
 def gaussTone(t, tau, f0):
     '''
@@ -850,7 +872,7 @@ def plotFieldData(fieldData, increment, component='magnitude',
         raise ValueError('Invalid displacement component.')
         
     if increment<1 and increment>fieldData.nFieldIncs:
-        raise ValueError('Invalid increment, must be in range [1,{}].'.format(fieldData.nFieldIncs))
+        raise ValueError('Invalid increment, must be in range [1,{}].'.format(fieldData.nFieldInc))
         
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -869,10 +891,11 @@ def plotFieldData(fieldData, increment, component='magnitude',
     
     if fieldData.nDims == 2:
         #try an interpolator - this works
+        print 'Doing interpolation for plotting'
         inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
         interp = si.LinearNDInterpolator(inputCoords, data)
-        nx = 200
-        ny = 200
+        nx = 400
+        ny = 340
         xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
         yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
         
@@ -880,7 +903,9 @@ def plotFieldData(fieldData, increment, component='magnitude',
         
         finalData = interp(xs, ys)
         
-        ax.imshow(finalData)
+        print 'Plotting'
+        extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
+        ax.imshow(finalData, origin='lower', extent=extent_, aspect='auto')
         
     elif fieldData.nDims == 3:
         print 'Not implemented yet...'
@@ -925,4 +950,51 @@ def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotA
         yPrime = np.matmul(R,yAx)
         orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
         orOutList.append(orOut)
-    return orOutList   
+    return orOutList
+    
+def plot2Dmesh(nodes, elements, returnFig=False):
+    '''
+    Function to plot a graph of a 2D mesh. WARNING this will break for large
+    number of elements.
+    
+    Parameters
+    ----------
+    nodes : array, float
+        The coordinates of the nodes passed in an array of shape
+        (nDims, nNodes). It must have 2 coordinates for each node.
+        
+    elements : array, int
+        The defintion of the elements in the shape (nNodes per element,
+        nElements). Each column should have the nodes that make up that
+        element and should be 1 indexed.
+        
+    returnFig : boolean, optional
+        Whether or not to return the generated figure. Default is False in
+        which case it is not returned.
+    '''
+    nDims, nNodes = np.shape(nodes)
+    if nDims != 2:
+        raise ValueError('This will only plot for 2D.')
+        
+    nNodesPerElement, nElements = np.shape(elements)
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    ax.scatter(nodes[0], nodes[1], c='b', s=10.0)
+    ax.set_aspect('equal')
+    dx = np.max(nodes[0]) - np.min(nodes[0])
+    dy = np.max(nodes[1]) - np.min(nodes[1])
+    ax.set_xlim([np.min(nodes[0])-0.05*dx, np.max(nodes[0])+0.05*dx])
+    ax.set_ylim([np.min(nodes[1])-0.05*dy, np.max(nodes[1])+0.05*dy])
+    
+    for c1 in range(nElements):
+        for c2 in range(nNodesPerElement):
+            ax.plot([nodes[0, elements[c2, c1]-1], nodes[0, elements[(c2+1)%nNodesPerElement, c1]-1]],
+                    [nodes[1, elements[c2, c1]-1], nodes[1, elements[(c2+1)%nNodesPerElement, c1]-1]],
+                     'k')
+    
+    if returnFig == True:
+        return fig
+    else:
+        return

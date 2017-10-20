@@ -299,6 +299,97 @@ def write2DRectanglePolyFile(x,y,fileName,origin=[0.,0.]):
         f.write('0\n')
         
     return
+    
+def writeTwoLayerRectanglePolyFile(x, y1, y2, fileName, origin=[0.0, 0.0],
+                                   size1=None, size2=None):
+    '''
+    Function to generate a .poly file of a 2D rectangle with 2 layers in the
+    y axis of equal width.
+    
+    Parameters
+    ----------
+    x : float
+        The x extent of the block.
+        
+    y1 : float
+        The y extent of the first layer of the block.
+        
+    y2 : float
+        The y extent of the second layer of the block.
+        
+    fileName : string
+        The name of the .poly file to be saved.
+        
+    origin : iterable, float, optional
+        The coordinate of the node nearest the origin of the global
+        coordinate system. The default is the origin of the global coordinate
+        system, [0., 0., 0.]
+        
+    size1 : float, optional
+        The target mesh size for first layer. Default is None in which case
+        this is set to -1. When the area is negative it is ignored by the
+        Triangle meshing program.
+    
+    size12: float, optional
+        The target mesh size for second layer. Default is None in which case
+        this is set to -1. When the area is negative it is ignored by the
+        Triangle meshing program.
+    
+    Returns
+    -------
+    None
+    
+    '''
+    if fileName[-5:] != '.poly':
+        fileName += '.poly'
+    
+    origin1 = [origin[0], origin[1]]
+    origin2 = [origin[0], origin[1]+y1]
+    corners1, segments1 = rect2DPolyFormat(x,y1,origin1)
+    corners2, segments2 = rect2DPolyFormat(x,y2,origin2)
+    
+    corners2 = corners2[2:]
+    segments2 = [[3,5],
+                 [5,6],
+                 [6,4]]
+    
+    corners = corners1 + corners2
+    segments = segments1 + segments2
+    
+    with open(fileName, 'w') as f:
+        # Write out the corners
+        f.write('# <Number of vertices> <Number of dimensions> <Number of attributes> <Boundary markers 0 or 1>\n')
+        f.write('{} 2 2 0\n'.format(len(corners)))
+        
+        for c1 in range(len(corners)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*corners[c1])
+            f.write(string)
+        
+        # Write out the segments
+        f.write('# <Number of segments> <Boundary markers 0 or 1>\n')
+        f.write('{} 0\n'.format(len(segments)))
+        
+        for c1 in range(len(segments)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*segments[c1])
+            f.write(string)
+        
+        # Write out the holes - none in this case
+        f.write('0\n')
+        
+        #Write out the number of regions and the region attributes
+        if size1 == None:
+            size1 = -1
+        if size2 == None:
+            size2 = -1
+            
+        f.write('2\n')
+        f.write('1 {} {} 0 {:.12f}\n'.format(x/2, y1/2, size1))
+        f.write('2 {} {} 1 {:.12f}\n'.format(x/2, y1+y2/2, size1))
+        
+        
+    return
             
 def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
     '''
