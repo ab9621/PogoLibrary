@@ -4,6 +4,7 @@ functions
 '''
 
 import numpy as np
+import pogoFunctions as pf
 
 def splitString(string, n, insertString=None):
     '''
@@ -386,7 +387,7 @@ def writeTwoLayerRectanglePolyFile(x, y1, y2, fileName, origin=[0.0, 0.0],
             
         f.write('2\n')
         f.write('1 {} {} 0 {:.12f}\n'.format(x/2, y1/2, size1))
-        f.write('2 {} {} 1 {:.12f}\n'.format(x/2, y1+y2/2, size1))
+        f.write('2 {} {} 1 {:.12f}\n'.format(x/2, y1+y2/2, size2))
         
         
     return
@@ -448,6 +449,114 @@ def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
         f.write('0')
     return
     
+
+def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
+                               probeCentre=None, origin=[0., 0.], size1=None,
+                               size2=None):
+    '''
+    Function to generate a poly file for a delay line (similar to a wedge) on
+    top of a block. NEEDS COMMENTING
     
+    Parameters
+    ----------
+    x1 : float
+        The width of the lower block.
+        
+    x2 : float
+        The width of the delay line
+        
+    y1 : float
+        The height of the lower block
+        
+    y2 : float
+        The length of the delay line as if it were a rectangle (maximum length)
+        
+    angle : float
+        The angle of the delay line relative to the negative y-axis, in
+        degrees, in the anti-clockwise direction
+    
+    probeCentre : iterable, float
+        The centre of the delay line on the surface relative to the origin,
+        easiest to think of as if it were vertical
+    '''
+    if probeCentre == None:
+        probeCentre = [x1/2., y1]
+    
+    theta_ = np.deg2rad(angle)
+    widthOnFace = x2/np.cos(theta_)
+    ## Define the lower block nodes - cyclic anticlockwise from origin
+    lowerNodes = [origin,
+                  [origin[0] + x1, origin[1]],
+                  [origin[0] + x1, origin[1] + y1],
+                  [origin[0] + probeCentre[0] + widthOnFace/2., origin[1] + y1],
+                  [origin[0] + probeCentre[0] - widthOnFace/2., origin[1] + y1],
+                  [origin[0], origin[1] + y1]]
+    
+    ## Define the lower block segments
+    lowerSegments = [[1,2],
+                     [2,3],
+                     [3,4],
+                     [4,5],
+                     [5,6],
+                     [6,1]]
+    
+    ## Define the delay line nodes - only the top two needed
+    centreOfRot = np.array([origin[0] + probeCentre[0] + widthOnFace/2., origin[1]+y1]) 
+    rightNode = np.array([origin[0] + probeCentre[0] + widthOnFace/2., origin[1]+y1+y2])
+    leftNode = np.array([origin[0] + probeCentre[0] - widthOnFace/2., origin[1]+y1+y2])
+    
+    upperNodes = [pf.rotate2D(rightNode, angle, centreOfRot),
+                  pf.rotate2D(leftNode, angle, centreOfRot)]
+    
+    lowerNodes[4] = [origin[0] + probeCentre[0] + widthOnFace/2. - widthOnFace/np.cos(theta_),
+                     origin[1]+y1] #Update the intersection point
+           
+    ## Define the delay line segments
+    upperSegments = [[4,7],
+                     [7,8],
+                     [8,5]]
+                 
+    corners = lowerNodes + upperNodes
+    segments = lowerSegments + upperSegments
+    
+    if fileName[-5:] != '.poly':
+        fileName += '.poly'
+    
+    with open(fileName, 'w') as f:
+        # Write out the corners
+        f.write('# <Number of vertices> <Number of dimensions> <Number of attributes> <Boundary markers 0 or 1>\n')
+        f.write('{} 2 2 0\n'.format(len(corners)))
+        
+        for c1 in range(len(corners)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*corners[c1])
+            f.write(string)
+        
+        # Write out the segments
+        f.write('# <Number of segments> <Boundary markers 0 or 1>\n')
+        f.write('{} 0\n'.format(len(segments)))
+        
+        for c1 in range(len(segments)):
+            string = '{}'.format(c1+1)
+            string += ' {} {}\n'.format(*segments[c1])
+            f.write(string)
+        
+        # Write out the holes - none in this case
+        f.write('0\n')
+        
+        #Write out the number of regions and the region attributes
+        if size1 == None:
+            size1 = -1
+        if size2 == None:
+            size2 = -1
+            
+        f.write('2\n')
+        f.write('1 {} {} 0 {:.12f}\n'.format(x1/2, y1/2, size1))
+        point2_ = [origin[0] + probeCentre[0], origin[1]+probeCentre[1]+y2/2.]
+        point2 = pf.rotate2D(point2_, angle, centreOfRot)
+        f.write('2 {} {} 1 {:.12f}\n'.format(point2[0], point2[1], size2))
+        
+        
+    return
     
     

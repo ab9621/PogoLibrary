@@ -37,104 +37,93 @@ def __criticalCalc__(a,b):
         return np.inf
     else:
         return np.arcsin(tmp)
-        
-def loadNodeFile(fileName, nDims=3, regionAttributes=False):
-    '''
-    Function to load in a .node file as used with tetgen and triangle, store
-    the nodes in an array of shape (nDimensions, nNodes) and return it.
-    
-    Parameters
-    ----------
-    fileName : string
-        The name of the .node file to read. The extension '.node' must be
-        passed in fileName.
-        
-    regionAttributes : boolean, optional
-        Whether region attributes were specified in the generation of the 
-        mesh.
-        
-    Returns
-    -------
-    nodes : array, float
-        The array of shape (nDimensions, nNodes) of the nodes loaded in.
-    '''
-    if fileName[-5:] != '.node':
-        raise ValueError('File supplied is not .node file')
-    
-    if nDims not in [2,3]:
-        raise ValueError('The nodes must have 2 or 3 dimensions, not {}'.format(nDims))
-    nodes = (np.genfromtxt(fileName, dtype='float64', skip_header=1)).T
-    
-    if regionAttributes == False:
-        if nDims == 3:
-            nodes = nodes[1:]
-        elif nDims == 2:
-            nodes = nodes[1:-1]
-    else:
-        if nDims == 3:
-            nodes = nodes[1:-2]
-        elif nDims == 2:
-            nodes = nodes[1:-3]
-    return nodes
-    
-def loadElementFile(fileName, regionAttributes=False):
-    '''
-    Function to load in a .ele file as used with tetgen and triangle, store
-    the nodes in an array of shape (nNodesPerElement, nElements) and return
-    it.
-    
-    Parameters
-    ----------
-    fileName : string
-        The name of the .ele file to read.
-        
-    regionAttributes : boolean, optional
-        Whether region attributes were specified in the generation of the 
-        mesh.
-        
-    Returns
-    -------
-    elements : array, float
-        The array of shape (nNodesPereElement, nElements) of the nodes loaded
-        in.
-    '''
-    if fileName[-4:] != '.ele':
-        raise ValueError('File supplied is not .node file')
-    
-    elements = (np.genfromtxt(fileName, dtype='int32', skip_header=1)).T
-    
-    if regionAttributes == False:
-        elements = elements[1:]
-        return elements.astype('int32')
 
-    else:
-        regionAttributes = np.copy(elements[-1])
-        elements = elements[1:-1]
-        return elements.astype('int32'), regionAttributes.astype('int32')
+def cartesianCombinations(arrays, out=None):
+    """
+    Generate a cartesian product of input arrays.
+
+    Parameters
+    ----------
+    arrays : list of array-like
+        1-D arrays to form the cartesian product of.
+    out : ndarray
+        Array to place the cartesian product in.
+
+    Returns
+    -------
+    out : ndarray
+        2-D array of shape (M, len(arrays)) containing cartesian products
+        formed of input arrays.
+
+    Examples
+    --------
+    >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
+    array([[1, 4, 6],
+           [1, 4, 7],
+           [1, 5, 6],
+           [1, 5, 7],
+           [2, 4, 6],
+           [2, 4, 7],
+           [2, 5, 6],
+           [2, 5, 7],
+           [3, 4, 6],
+           [3, 4, 7],
+           [3, 5, 6],
+           [3, 5, 7]])
+
+    """
     
-def gaussTone(t, tau, f0):
+    arrays = [np.asarray(x) for x in arrays]
+    dtype = arrays[0].dtype
+
+    n = np.prod([x.size for x in arrays])
+    if out is None:
+        out = np.zeros([n, len(arrays)], dtype=dtype)
+
+    m = n / arrays[0].size
+    out[:,0] = np.repeat(arrays[0], m)
+    if arrays[1:]:
+        cartesianCombinations(arrays[1:], out=out[0:m,1:])
+        for j in xrange(1, arrays[0].size):
+            out[j*m:(j+1)*m,1:] = out[0:m,1:]
+    return out
+
+def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
     '''
-    Function to generate a 5 cycle Gaussian tone burst.
+    Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
     
     Parameters
     ----------
-    t : array, float
-        The time vector in which the pulse is to be generated.
-        
-    tau : float
-        The time of the centre of the pulse.
-        
-    f0 : float
-        The centre frequency of the pulse.
-        
+    phis: iterable containing desired rotation angles
+    origin: origin of the coordinate system
+    addRotDim: dimension of any additional rotation (default is 3; z-axis)
+    addRotAngle: scalar defining additional rotation about axis defined by addRotDim
+    NOTE: the additional rotation is a hangover from more complex rotation types (e.g. cylindrical);
+    everything should be acheivable with the first two arguments.
+    
     Returns
     -------
-    gaussian5CycleToneBurst : array, float
-        The amplitudes at all times of the tone burst.
-    '''
+    orOutList: list of rectangular orientations defined by [ax, ay, az, bx, by, bz, ox, oy, oz] 
+               where (ax,ay,az) is the transformed x-axis, (bx,by,bz) is the transformed y-axis
+               and (ox,oy,oz) is the transformed origin.
     
-    return np.exp(-1.*np.power((t-tau)/(1/(1.0*f0)), 2)) * np.sin(2*np.pi*f0*(t-tau))
-
+    '''
+    orOutList = []
+    for ii in range(len(phis)):
+        phi = phis[ii]
+        xAx = np.array([1,0,0])
+        yAx = np.array([0,1,0])
+        
+        R = np.array([[np.cos(phi), -np.sin(phi), 0],
+                    [np.sin(phi),  np.cos(phi), 0],
+                    [0,                  0, 1]])
+        
+        xPrime = np.matmul(R,xAx)
+        yPrime = np.matmul(R,yAx)
+        orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
+        orOutList.append(orOut)
+    return orOutList
+    
 def findNodesInTransducer(nodes, 
                           transducerCentre, 
                           xWidth, 
@@ -248,43 +237,7 @@ def findNodesInTransducer(nodes,
         nodeIndices = np.where((0<beta) & (beta<vector2) & (0<alpha) & (alpha<vector1))[0]
         
     return (onSurf[nodeIndices]).astype('int32')
-        
 
-def rotate2D(position, angle, centreOfRotation):
-    '''
-    Function to rotate a point through space about another point through a
-    given angle in 2 dimensions.
-    
-    Parameters
-    ----------
-    position : array, float
-        The point which is to be rotated.
-        
-    angle : float
-        The angle through which the point is to be rotated anti-clockwise, in
-        degrees.
-        
-    centreOfRotation : array, float
-        The coordinates about which the point is to be rotated.
-        
-    Returns
-    -------
-    coords : float, array
-        The coordinates of the rotated point.
-    '''
-    if len(position) != 2 or len(centreOfRotation) != 2:
-        raise ValueError('All coordinates must be in 2D.')
-        
-    angle *= np.pi/180.
-
-    x = position[0] - centreOfRotation[0]
-    y = position[1] - centreOfRotation[1]
-
-    xP = np.cos(angle)*x - np.sin(angle)*y + centreOfRotation[0]
-    yP = np.sin(angle)*x + np.cos(angle)*y + centreOfRotation[1]
-    
-    return np.array([xP, yP])
-        
 def gaussianAngledBeam(transducerNodes, 
                        verticalAngle, 
                        dt, 
@@ -362,103 +315,7 @@ def gaussianAngledBeam(transducerNodes,
         traces[:,c1] = gaussTone(np.copy(time), taus[c1], f0)
         
     return traces
-
-def tukeyWindow(left, right, taperWidth, nWindow, rightTaperWidth=None):
-    '''
-    Function to return a Tukey window.
     
-    Parameters
-    ----------
-    left : int
-        The index of the position where the window first reaches 1
-        
-    right : int
-        The index of the position where the window last reaches 1
-        
-    taperWidth : int
-        The width of the taper regions
-        
-    nWindow : int
-        The length of the whole array in which the window sits
-        
-    rightTaperWidth : optional
-        If this is None then the taper on both sides are of equal length. If
-        set to an int, this is the width of the right taper and taperWidth is
-        the width of the left taper. Default is None in which case the window
-        is symmetric
-        
-    Returns
-    -------
-    window : array, float
-        The tukey window
-    '''
-    lWidth = taperWidth
-    if rightTaperWidth == None:
-        rWidth = taperWidth
-        
-    else:
-        try:
-            rWidth = int(rightTaperWidth)
-        except:
-            raise ValueError('rightTaperWidth must be an int.')
-            
-    window = np.zeros(nWindow)
-    window[left:right] = 1.0
-    window[left-lWidth:left] = 0.5*(1.-np.cos(np.pi*np.linspace(0, lWidth-1, lWidth)/(lWidth-1)))
-    window[right:right+rWidth] = 0.5*(1+np.cos(np.pi*(np.linspace(0, rWidth-1, rWidth))/(rWidth-1)))
-    
-    return window
-    
-def cartesianCombinations(arrays, out=None):
-    """
-    Generate a cartesian product of input arrays.
-
-    Parameters
-    ----------
-    arrays : list of array-like
-        1-D arrays to form the cartesian product of.
-    out : ndarray
-        Array to place the cartesian product in.
-
-    Returns
-    -------
-    out : ndarray
-        2-D array of shape (M, len(arrays)) containing cartesian products
-        formed of input arrays.
-
-    Examples
-    --------
-    >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
-    array([[1, 4, 6],
-           [1, 4, 7],
-           [1, 5, 6],
-           [1, 5, 7],
-           [2, 4, 6],
-           [2, 4, 7],
-           [2, 5, 6],
-           [2, 5, 7],
-           [3, 4, 6],
-           [3, 4, 7],
-           [3, 5, 6],
-           [3, 5, 7]])
-
-    """
-    
-    arrays = [np.asarray(x) for x in arrays]
-    dtype = arrays[0].dtype
-
-    n = np.prod([x.size for x in arrays])
-    if out is None:
-        out = np.zeros([n, len(arrays)], dtype=dtype)
-
-    m = n / arrays[0].size
-    out[:,0] = np.repeat(arrays[0], m)
-    if arrays[1:]:
-        cartesianCombinations(arrays[1:], out=out[0:m,1:])
-        for j in xrange(1, arrays[0].size):
-            out[j*m:(j+1)*m,1:] = out[0:m,1:]
-    return out
-
 def gaussianBeamProfile(nodes, 
                         transducerCentre, 
                         sigmaX, 
@@ -575,7 +432,30 @@ def gaussianBeamProfile(nodes,
             plt.colorbar(label='Amplitude (Arbitrary Units)')
     
     return amplitudes
+
+def gaussTone(t, tau, f0):
+    '''
+    Function to generate a 5 cycle Gaussian tone burst.
     
+    Parameters
+    ----------
+    t : array, float
+        The time vector in which the pulse is to be generated.
+        
+    tau : float
+        The time of the centre of the pulse.
+        
+    f0 : float
+        The centre frequency of the pulse.
+        
+    Returns
+    -------
+    gaussian5CycleToneBurst : array, float
+        The amplitudes at all times of the tone burst.
+    '''
+    
+    return np.exp(-1.*np.power((t-tau)/(1/(1.0*f0)), 2)) * np.sin(2*np.pi*f0*(t-tau))
+
 def hanningBeamProfile(nodes, 
                         transducerCentre,
                         transXWidth,
@@ -696,35 +576,81 @@ def hanningBeamProfile(nodes,
             plt.colorbar(label='Amplitude (Arbitrary Units)')
     
     return amplitudes
-    
-def waveVelocity(E, nu, rho):
+
+def loadElementFile(fileName, regionAttributes=False):
     '''
-    Convenience function to calculate the longitudinal and shear velocities
-    given some material properties. All units are SI.
+    Function to load in a .ele file as used with tetgen and triangle, store
+    the nodes in an array of shape (nNodesPerElement, nElements) and return
+    it.
     
     Parameters
     ----------
-    E : float
-        The Young's modulus of the material.
+    fileName : string
+        The name of the .ele file to read.
         
-    nu : float
-        The Poisson's ratio of the material.
-        
-    rho : float
-        The density of the material.
+    regionAttributes : boolean, optional
+        Whether region attributes were specified in the generation of the 
+        mesh.
         
     Returns
     -------
-    cp : float
-        The longitudinal wave velocity.
-        
-    cs : float
-        The shear wave velocity.
+    elements : array, float
+        The array of shape (nNodesPereElement, nElements) of the nodes loaded
+        in.
     '''
-    cp = np.sqrt((E*(1.-nu))/(rho*(1.+nu)*(1-2.*nu)))
-    cs = np.sqrt(E/(2.*(1+nu)*rho))
-    return cp, cs
-   
+    if fileName[-4:] != '.ele':
+        raise ValueError('File supplied is not .node file')
+    
+    elements = (np.genfromtxt(fileName, dtype='int32', skip_header=1)).T
+    
+    if regionAttributes == False:
+        elements = elements[1:]
+        return elements.astype('int32')
+
+    else:
+        regionAttributes = np.copy(elements[-1])
+        elements = elements[1:-1]
+        return elements.astype('int32'), regionAttributes.astype('int32')   
+        
+def loadNodeFile(fileName, nDims=3, regionAttributes=False):
+    '''
+    Function to load in a .node file as used with tetgen and triangle, store
+    the nodes in an array of shape (nDimensions, nNodes) and return it.
+    
+    Parameters
+    ----------
+    fileName : string
+        The name of the .node file to read. The extension '.node' must be
+        passed in fileName.
+        
+    regionAttributes : boolean, optional
+        Whether region attributes were specified in the generation of the 
+        mesh.
+        
+    Returns
+    -------
+    nodes : array, float
+        The array of shape (nDimensions, nNodes) of the nodes loaded in.
+    '''
+    if fileName[-5:] != '.node':
+        raise ValueError('File supplied is not .node file')
+    
+    if nDims not in [2,3]:
+        raise ValueError('The nodes must have 2 or 3 dimensions, not {}'.format(nDims))
+    nodes = (np.genfromtxt(fileName, dtype='float64', skip_header=1)).T
+    
+    if regionAttributes == False:
+        if nDims == 3:
+            nodes = nodes[1:]
+        elif nDims == 2:
+            nodes = nodes[1:-1]
+    else:
+        if nDims == 3:
+            nodes = nodes[1:-2]
+        elif nDims == 2:
+            nodes = nodes[1:-3]
+    return nodes     
+
 def minEdgeLength(nodes, elements):
     '''
     Function to find the minimum edge length of any element in a mesh.
@@ -760,7 +686,166 @@ def minEdgeLength(nodes, elements):
     
     minDistance = np.sqrt(minDistance)        
     return minDistance
+
+def plot2Dmesh(nodes, elements, returnFig=False):
+    '''
+    Function to plot a graph of a 2D mesh. WARNING this will break for large
+    number of elements.
     
+    Parameters
+    ----------
+    nodes : array, float
+        The coordinates of the nodes passed in an array of shape
+        (nDims, nNodes). It must have 2 coordinates for each node.
+        
+    elements : array, int
+        The defintion of the elements in the shape (nNodes per element,
+        nElements). Each column should have the nodes that make up that
+        element and should be 1 indexed.
+        
+    returnFig : boolean, optional
+        Whether or not to return the generated figure. Default is False in
+        which case it is not returned.
+    '''
+    nDims, nNodes = np.shape(nodes)
+    if nDims != 2:
+        raise ValueError('This will only plot for 2D.')
+        
+    nNodesPerElement, nElements = np.shape(elements)
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    ax.scatter(nodes[0], nodes[1], c='b', s=10.0)
+    ax.set_aspect('equal')
+    dx = np.max(nodes[0]) - np.min(nodes[0])
+    dy = np.max(nodes[1]) - np.min(nodes[1])
+    ax.set_xlim([np.min(nodes[0])-0.05*dx, np.max(nodes[0])+0.05*dx])
+    ax.set_ylim([np.min(nodes[1])-0.05*dy, np.max(nodes[1])+0.05*dy])
+    
+    for c1 in range(nElements):
+        for c2 in range(nNodesPerElement):
+            ax.plot([nodes[0, elements[c2, c1]-1], nodes[0, elements[(c2+1)%nNodesPerElement, c1]-1]],
+                    [nodes[1, elements[c2, c1]-1], nodes[1, elements[(c2+1)%nNodesPerElement, c1]-1]],
+                     'k')
+    
+    if returnFig == True:
+        return fig
+    else:
+        return
+
+def plotFieldData(fieldData, increment, component='magnitude',
+                  returnFig=False):
+    '''
+    Function to plot the field data for a given increment.
+    
+    Parameters
+    ----------
+    fieldData : instance of __fieldObject__ class. 
+        The data to be plotted contained in an instance of the 
+        __fieldObject__ class. This is the class generated by the function in
+        this library to load in a field history file.
+        
+    increment : int
+        The increment at which the data is to be plotted. Must be 1 indexed.
+        
+    component : string, optional
+        The component of the displacement to be plotted. Default is
+        'magnitude' in which case the magnitude of the displacement vector is
+        plotted. Other valid values are 'ux', 'uy' or 'uz'.
+        
+    returnFig : boolean, optional
+        Whether or not to return the generated figure. Default is False in
+        which case it is not returned.
+        
+    Returns
+    -------
+    fig : matplotlib figure, optional
+        The figure instance of the plot.
+    '''
+    if component not in ['ux', 'uy', 'uz', 'magnitude']:
+        raise ValueError('Invalid displacement component.')
+        
+    if increment<1 and increment>fieldData.nFieldIncs:
+        raise ValueError('Invalid increment, must be in range [1,{}].'.format(fieldData.nFieldInc))
+        
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    if component == 'magnitude':
+        data = np.sqrt(fieldData.ux[:,increment]**2 + fieldData.uy[:,increment]**2 + fieldData.uz[:,increment]**2)
+        
+    elif component == 'ux':
+        data = fieldData.ux[:,increment]
+        
+    elif component == 'uy':
+        data = fieldData.uy[:,increment]
+        
+    elif component == 'uz':
+        data = fieldData.uz[:,increment]
+    
+    if fieldData.nDims == 2:
+        #try an interpolator - this works
+        print 'Doing interpolation for plotting'
+        inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
+        interp = si.LinearNDInterpolator(inputCoords, data, fill_value=0.0)
+        nx = 400
+        ny = 400
+        xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
+        yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
+        
+        xs, ys = np.meshgrid(xBase, yBase)
+        
+        finalData = interp(xs, ys)
+        
+        print 'Plotting'
+        extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
+        ax.imshow(finalData, origin='lower', extent=extent_, aspect='auto')
+        
+    elif fieldData.nDims == 3:
+        print 'Not implemented yet...'
+        
+    if returnFig == True:
+        return fig
+        
+    else:
+        return
+        
+def rotate2D(position, angle, centreOfRotation):
+    '''
+    Function to rotate a point through space about another point through a
+    given angle in 2 dimensions.
+    
+    Parameters
+    ----------
+    position : array, float
+        The point which is to be rotated.
+        
+    angle : float
+        The angle through which the point is to be rotated anti-clockwise, in
+        degrees.
+        
+    centreOfRotation : array, float
+        The coordinates about which the point is to be rotated.
+        
+    Returns
+    -------
+    coords : float, array
+        The coordinates of the rotated point.
+    '''
+    if len(position) != 2 or len(centreOfRotation) != 2:
+        raise ValueError('All coordinates must be in 2D.')
+        
+    angle *= np.pi/180.
+
+    x = position[0] - centreOfRotation[0]
+    y = position[1] - centreOfRotation[1]
+
+    xP = np.cos(angle)*x - np.sin(angle)*y + centreOfRotation[0]
+    yP = np.sin(angle)*x + np.cos(angle)*y + centreOfRotation[1]
+    
+    return np.array([xP, yP])
+
 def snellsLawModeConversion(vL1,vL2,vS1,vS2,theta,mode=0):
     '''
     Function to calculate the angles of reflection and refraction for a wave
@@ -839,162 +924,76 @@ def snellsLawModeConversion(vL1,vL2,vS1,vS2,theta,mode=0):
         
     return reflectedLong, reflectedShear, refractedLong, refractedShear
     
-def plotFieldData(fieldData, increment, component='magnitude',
-                  returnFig=False):
+def tukeyWindow(left, right, taperWidth, nWindow, rightTaperWidth=None):
     '''
-    Function to plot the field data for a given increment.
+    Function to return a Tukey window.
     
     Parameters
     ----------
-    fieldData : instance of __fieldObject__ class. 
-        The data to be plotted contained in an instance of the 
-        __fieldObject__ class. This is the class generated by the function in
-        this library to load in a field history file.
+    left : int
+        The index of the position where the window first reaches 1
         
-    increment : int
-        The increment at which the data is to be plotted. Must be 1 indexed.
+    right : int
+        The index of the position where the window last reaches 1
         
-    component : string, optional
-        The component of the displacement to be plotted. Default is
-        'magnitude' in which case the magnitude of the displacement vector is
-        plotted. Other valid values are 'ux', 'uy' or 'uz'.
+    taperWidth : int
+        The width of the taper regions
         
-    returnFig : boolean, optional
-        Whether or not to return the generated figure. Default is False in
-        which case it is not returned.
+    nWindow : int
+        The length of the whole array in which the window sits
+        
+    rightTaperWidth : optional
+        If this is None then the taper on both sides are of equal length. If
+        set to an int, this is the width of the right taper and taperWidth is
+        the width of the left taper. Default is None in which case the window
+        is symmetric
         
     Returns
     -------
-    fig : matplotlib figure, optional
-        The figure instance of the plot.
+    window : array, float
+        The tukey window
     '''
-    if component not in ['ux', 'uy', 'uz', 'magnitude']:
-        raise ValueError('Invalid displacement component.')
-        
-    if increment<1 and increment>fieldData.nFieldIncs:
-        raise ValueError('Invalid increment, must be in range [1,{}].'.format(fieldData.nFieldInc))
-        
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    
-    if component == 'magnitude':
-        data = np.sqrt(fieldData.ux[:,increment]**2 + fieldData.uy[:,increment]**2 + fieldData.uz[:,increment]**2)
-        
-    elif component == 'ux':
-        data = fieldData.ux[:,increment]
-        
-    elif component == 'uy':
-        data = fieldData.uy[:,increment]
-        
-    elif component == 'uz':
-        data = fieldData.uz[:,increment]
-    
-    if fieldData.nDims == 2:
-        #try an interpolator - this works
-        print 'Doing interpolation for plotting'
-        inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
-        interp = si.LinearNDInterpolator(inputCoords, data, fill_value=0.0)
-        nx = 400
-        ny = 340
-        xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
-        yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
-        
-        xs, ys = np.meshgrid(xBase, yBase)
-        
-        finalData = interp(xs, ys)
-        
-        print 'Plotting'
-        extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
-        ax.imshow(finalData, origin='lower', extent=extent_, aspect='auto')
-        
-    elif fieldData.nDims == 3:
-        print 'Not implemented yet...'
-        
-    if returnFig == True:
-        return fig
+    lWidth = taperWidth
+    if rightTaperWidth == None:
+        rWidth = taperWidth
         
     else:
-        return
+        try:
+            rWidth = int(rightTaperWidth)
+        except:
+            raise ValueError('rightTaperWidth must be an int.')
+            
+    window = np.zeros(nWindow)
+    window[left:right] = 1.0
+    window[left-lWidth:left] = 0.5*(1.-np.cos(np.pi*np.linspace(0, lWidth-1, lWidth)/(lWidth-1)))
+    window[right:right+rWidth] = 0.5*(1+np.cos(np.pi*(np.linspace(0, rWidth-1, rWidth))/(rWidth-1)))
     
-def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
+    return window
+    
+def waveVelocity(E, nu, rho):
     '''
-    Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
+    Convenience function to calculate the longitudinal and shear velocities
+    given some material properties. All units are SI.
     
     Parameters
     ----------
-    phis: iterable containing desired rotation angles
-    origin: origin of the coordinate system
-    addRotDim: dimension of any additional rotation (default is 3; z-axis)
-    addRotAngle: scalar defining additional rotation about axis defined by addRotDim
-    NOTE: the additional rotation is a hangover from more complex rotation types (e.g. cylindrical);
-    everything should be acheivable with the first two arguments.
-    
+    E : float
+        The Young's modulus of the material.
+        
+    nu : float
+        The Poisson's ratio of the material.
+        
+    rho : float
+        The density of the material.
+        
     Returns
     -------
-    orOutList: list of rectangular orientations defined by [ax, ay, az, bx, by, bz, ox, oy, oz] 
-               where (ax,ay,az) is the transformed x-axis, (bx,by,bz) is the transformed y-axis
-               and (ox,oy,oz) is the transformed origin.
-    
+    cp : float
+        The longitudinal wave velocity.
+        
+    cs : float
+        The shear wave velocity.
     '''
-    orOutList = []
-    for ii in range(len(phis)):
-        phi = phis[ii]
-        xAx = np.array([1,0,0])
-        yAx = np.array([0,1,0])
-        
-        R = np.array([[np.cos(phi), -np.sin(phi), 0],
-                    [np.sin(phi),  np.cos(phi), 0],
-                    [0,                  0, 1]])
-        
-        xPrime = np.matmul(R,xAx)
-        yPrime = np.matmul(R,yAx)
-        orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
-        orOutList.append(orOut)
-    return orOutList
-    
-def plot2Dmesh(nodes, elements, returnFig=False):
-    '''
-    Function to plot a graph of a 2D mesh. WARNING this will break for large
-    number of elements.
-    
-    Parameters
-    ----------
-    nodes : array, float
-        The coordinates of the nodes passed in an array of shape
-        (nDims, nNodes). It must have 2 coordinates for each node.
-        
-    elements : array, int
-        The defintion of the elements in the shape (nNodes per element,
-        nElements). Each column should have the nodes that make up that
-        element and should be 1 indexed.
-        
-    returnFig : boolean, optional
-        Whether or not to return the generated figure. Default is False in
-        which case it is not returned.
-    '''
-    nDims, nNodes = np.shape(nodes)
-    if nDims != 2:
-        raise ValueError('This will only plot for 2D.')
-        
-    nNodesPerElement, nElements = np.shape(elements)
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    
-    ax.scatter(nodes[0], nodes[1], c='b', s=10.0)
-    ax.set_aspect('equal')
-    dx = np.max(nodes[0]) - np.min(nodes[0])
-    dy = np.max(nodes[1]) - np.min(nodes[1])
-    ax.set_xlim([np.min(nodes[0])-0.05*dx, np.max(nodes[0])+0.05*dx])
-    ax.set_ylim([np.min(nodes[1])-0.05*dy, np.max(nodes[1])+0.05*dy])
-    
-    for c1 in range(nElements):
-        for c2 in range(nNodesPerElement):
-            ax.plot([nodes[0, elements[c2, c1]-1], nodes[0, elements[(c2+1)%nNodesPerElement, c1]-1]],
-                    [nodes[1, elements[c2, c1]-1], nodes[1, elements[(c2+1)%nNodesPerElement, c1]-1]],
-                     'k')
-    
-    if returnFig == True:
-        return fig
-    else:
-        return
+    cp = np.sqrt((E*(1.-nu))/(rho*(1.+nu)*(1-2.*nu)))
+    cs = np.sqrt(E/(2.*(1+nu)*rho))
+    return cp, cs
