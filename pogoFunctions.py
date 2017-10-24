@@ -238,6 +238,45 @@ def findNodesInTransducer(nodes,
         
     return (onSurf[nodeIndices]).astype('int32')
 
+def findNodesInTransducerAngledPlane(nodes, transducerCentre, xWidth, plane,
+                                     yWidth=None, shape='circular'):
+    '''
+    Function to find the nodes in the surface of a transducer on an angled
+    plane. NEED TO DOCUMENT THIS. Plane and transducer centre are relative
+    to the global origin. This is going to be a big one to write.
+    
+    plane should be a unit vector in a numpy array
+    
+    '''
+    nDims, nNodes = np.shape(nodes)
+    
+    if nDims not in [2,3]:
+        raise ValueError('nodes must have 2 or 3 dimensions')
+    
+    planeV = np.array(plane)
+    planeV *= 1./np.sqrt(np.sum(planeV*planeV))
+    planeD = np.array(transducerCentre)
+    
+    ds = np.copy(nodes)
+    for c1 in range(nDims):
+        ds[c1] -= planeD[c1]
+        
+    dp = np.copy(ds)
+    for c1 in range(nDims):
+        dp[c1] *= planeV[c1]
+        
+    dp = np.sum(dp, axis=0)
+    print np.shape(dp)
+    print np.min(dp)
+    print np.max(dp)
+    print np.where(dp==0.)
+    
+    if shape == 'circular':
+        rs = np.sum(ds**2, axis=0)
+        nodeInds = np.where((rs <= (xWidth/2)**2) & (np.isclose(dp, 0.)))[0]
+        
+    return nodeInds
+    
 def gaussianAngledBeam(transducerNodes, 
                        verticalAngle, 
                        dt, 
