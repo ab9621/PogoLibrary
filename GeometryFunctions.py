@@ -488,8 +488,8 @@ def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
     lowerNodes = [origin,
                   [origin[0] + x1, origin[1]],
                   [origin[0] + x1, origin[1] + y1],
-                  [origin[0] + probeCentre[0] + widthOnFace/2., origin[1] + y1],
-                  [origin[0] + probeCentre[0] - widthOnFace/2., origin[1] + y1],
+                  [origin[0] + probeCentre[0] + x2/2., origin[1] + y1],
+                  [origin[0] + probeCentre[0] + x2/2. - widthOnFace, origin[1] + y1],
                   [origin[0], origin[1] + y1]]
     
     ## Define the lower block segments
@@ -501,15 +501,12 @@ def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
                      [6,1]]
     
     ## Define the delay line nodes - only the top two needed
-    centreOfRot = np.array([origin[0] + probeCentre[0] + widthOnFace/2., origin[1]+y1]) 
-    rightNode = np.array([origin[0] + probeCentre[0] + widthOnFace/2., origin[1]+y1+y2])
-    leftNode = np.array([origin[0] + probeCentre[0] - widthOnFace/2., origin[1]+y1+y2])
+    centreOfRot = np.array([origin[0] + probeCentre[0] + x2/2., origin[1]+y1])
+    rightNode = np.array([origin[0] + probeCentre[0] + x2/2., origin[1]+y1+y2])
+    leftNode = np.array([origin[0] + probeCentre[0] - x2/2., origin[1]+y1+y2])
     
     upperNodes = [pf.rotate2D(rightNode, angle, centreOfRot),
                   pf.rotate2D(leftNode, angle, centreOfRot)]
-    
-    lowerNodes[4] = [origin[0] + probeCentre[0] + widthOnFace/2. - widthOnFace/np.cos(theta_),
-                     origin[1]+y1] #Update the intersection point
            
     ## Define the delay line segments
     upperSegments = [[4,7],
