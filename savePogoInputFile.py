@@ -410,7 +410,7 @@ def writePogoInputFile(fileName,
         
         else:
             nFixDofA = np.array([nFixDof,], dtype='int32')
-            print nFixDofA
+            nFixDofA.tofile(f)
             
             for c1 in range(0, nSets):
                 dof = (boundaryConditions[c1*2]-1)*4 + boundaryConditions[c1*2+1]-1
@@ -479,7 +479,7 @@ def writePogoInputFile(fileName,
                 amp = np.array([signals[c1][1],], dtype=precString)
             
             elif type(signals[c1][1]) is np.float64:
-                amp = np.array([signals[c1][1],], dtype=precString)
+                amp = np.array(np.ones(nNodes)*signals[c1][1], dtype=precString)
                 
             else:
                 raise ValueError('Signal amplitude not recognised')
@@ -512,7 +512,7 @@ def writePogoInputFile(fileName,
             historyMeasurementFrequency = np.array([historyMeasurementFrequency,], dtype='int32')
             historyMeasurementFrequency.tofile(f)
             
-            if version == 1.04:
+            if version >= 1.04:
                 historyMeasurementStart = np.array([historyMeasurementStart-1,], dtype='int32')
                 historyMeasurementStart.tofile(f)
             

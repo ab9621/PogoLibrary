@@ -27,6 +27,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as si
 import itertools
+import matplotlib.animation as animate
 
 def __criticalCalc__(a,b):
     '''
@@ -37,6 +38,64 @@ def __criticalCalc__(a,b):
         return np.inf
     else:
         return np.arcsin(tmp)
+        
+def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
+    '''
+    Function to animate the plotting of 2D field data. NEEDS DOCUMENTING
+    
+    CURRENTLY BROKEN
+    '''
+    def __animate__(i):
+        im.set_array(fullData[:,:,i])
+        return [im,]
+        
+    if fieldData.nDims != 2:
+        raise ValueError('This only works in 2D')
+        
+    if component not in ['ux', 'uy', 'uz', 'magnitude']:
+        raise ValueError('Invalid displacement component.')
+    
+    if component == 'magnitude':
+        data = np.sqrt(fieldData.ux**2 + fieldData.uy**2 + fieldData.uz**2)
+        
+    elif component == 'ux':
+        data = fieldData.ux
+        
+    elif component == 'uy':
+        data = fieldData.uy
+        
+    elif component == 'uz':
+        data = fieldData.uz
+    
+    print 'Doing interpolation for plotting'
+    inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
+    nx = 400
+    ny = 400
+    xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
+    yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
+    
+    xs, ys = np.meshgrid(xBase, yBase)
+    
+    fullData = np.zeros((nx, ny, fieldData.nFieldInc))
+    for c1 in range(fieldData.nFieldInc):
+        interp = si.LinearNDInterpolator(inputCoords, data[:,c1], fill_value=0.0)
+        fullData[:,:,c1] = interp(xs, ys)
+    
+    extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    im = ax.imshow(fullData[:,:,0], origin='lower', extent=extent_,
+                   aspect='auto', interpolation='None')
+    
+    animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
+                                interval=50, blit=True)
+    if returnFig == True:
+        return fig
+        
+    else:
+        return
+    
 
 def cartesianCombinations(arrays, out=None):
     """
@@ -266,14 +325,10 @@ def findNodesInTransducerAngledPlane(nodes, transducerCentre, xWidth, plane,
         dp[c1] *= planeV[c1]
         
     dp = np.sum(dp, axis=0)
-    print np.shape(dp)
-    print np.min(dp)
-    print np.max(dp)
-    print np.where(dp==0.)
     
     if shape == 'circular':
         rs = np.sum(ds**2, axis=0)
-        nodeInds = np.where((rs <= (xWidth/2)**2) & (np.isclose(dp, 0.)))[0]
+        nodeInds = np.where((rs <= (xWidth/2)**2*1.001) & (np.isclose(dp, 0.)))[0]
         
     return nodeInds
     
