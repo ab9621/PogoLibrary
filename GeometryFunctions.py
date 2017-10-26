@@ -1,6 +1,9 @@
 '''
+Author : Alexander Ballisat
+
 Script of various functions that are used in Pogo geometry creation and other
-functions
+functions functions needed for these. These should provide a good basis for
+creating most models.
 '''
 
 import numpy as np
@@ -58,6 +61,9 @@ def circleGen(centre,r,dTheta=None,nPoints=None):
     Function to generate the points on a circle its centre and radius along
     with one other parameter, either dTheta or nPoints. One of the latter two
     must be set.
+    
+    Use for circles, for cylinders use cylinderGeneration as it is more
+    general.
     
     Input
     -----
@@ -117,6 +123,88 @@ def circleGen(centre,r,dTheta=None,nPoints=None):
     
     return points, facets
 
+def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
+                       origin=[0.,0.,0.], theta0=0.0):
+    '''
+    Funciton to generate the nodes and facets for a cylinder or part of a
+    cylinder. The cylinder is generated such that its length is in the z
+    axis. One of dTheta and nPoints must be specified.
+    
+    Parameters
+    ----------
+    r : float
+        The radius of the cylinder.
+        
+    z : float
+        The height of the cylinder.
+        
+    theta : float, optional
+        The proportion of the cylinder to generate in degrees. Default is
+        None in which case a complete cylinder, 360 degrees is generated.
+        
+    dTheta : float, optional
+        The change in angle between two points on the boundary of the circle.
+        The default is None in which case nPoints is used to determine the
+        change in angle.
+        
+    nPoints : int, optional
+        The number of points on the boundary of the circle. The dedault is
+        None in which case dTheta determines the number of points.
+        
+    origin : iterable, float
+        The global origin of the centre of the base of the cylinder.
+        
+    theta0 : float, optional
+        The start of the circle around the z axis anticlockwise from [r,0].
+        Useful for generating arcs at arbitrary points around the z axis.
+        Angle is in degrees.
+        
+    Output
+    -----
+    points : float array
+        Array of shape (2, nPoints) of the coordinates of the circumference of
+        the circle.
+        
+    facets : int array
+        Array of shape (4, nPoints) that describes the facets of the sides that
+        make a cylinder. The z coordinates of such points need to be set
+        afterwards.
+    '''
+    if dTheta == None and nPoints == None:
+        raise ValueError('\nOne of dTheta or nPoints must be set\n')
+        
+    if len(origin) != 3:
+        raise ValueError('\norigin must have 3 coordinates')
+    
+    if theta == None:
+        theta = 2.*np.pi
+        
+    if nPoints == None:
+        nPoints = int(theta/dTheta)
+    
+    if dTheta == None:
+        dTheta= theta/nPoints
+    
+    theta0_ = np.deg2rad(theta0)
+    points = np.zeros((3, nPoints*2))
+    c1 = np.linspace(0, nPoints-1, nPoints)*dTheta + theta0_
+    
+    xs = origin[0] + r*np.cos(c1)
+    ys = origin[1] + r*np.sin(c1)
+    points[0] = np.hstack((xs, xs))
+    points[1] = np.hstack((ys, ys))
+    points[2] = np.hstack((np.ones(nPoints)*(origin[2]+z), np.ones(nPoints)*origin[2]))
+    
+    facets = np.zeros((4,nPoints), dtype=int)
+    c1 = (np.linspace(1, nPoints, nPoints)).astype(int)
+    
+    facets[0] = np.copy(c1)
+    facets[1] = (np.copy(c1) - 1 + 1) % nPoints + 1
+    facets[2] = np.copy(facets[1]) +nPoints
+    facets[3] = np.copy(c1) + nPoints
+    
+    return points, facets
+    
 def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
                                probeCentre=None, origin=[0., 0.], size1=None,
                                size2=None):
@@ -447,7 +535,7 @@ def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
         f.write('# <Number of nodes> <Number of dimensions>\n')
         f.write('8 3\n')
         for c1 in range(1, 9):
-            s = '{} '.format(c1) + '{} {} {}\n'.format(*nodes[c1-1])
+            s = '{} '.format(c1) + '{} {} {}\n'.format(*nodes[c1])
             f.write(s)
         
         # Faces
@@ -456,6 +544,95 @@ def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
         for c1 in range(0, len(faces)):
             f.write('1 0\n')
             f.write('4 {} {} {} {}\n'.format(*faces[c1]))
+            
+        # Holes
+        f.write('# <Number of holes>\n')
+        f.write('0\n')
+        
+        # Regions
+        f.write('# <Number of regions>\n')
+        f.write('0')
+    return
+    
+def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName, 
+                                                  innerRadius,
+                                                  outerRadius,
+                                                  arcAngle,
+                                                  blockHeight,
+                                                  size1,
+                                                  size2):
+    '''
+    Function to write the poly file for a  delay line on part of a chunk of
+    a cylinder. The idea is to not model the whole cylinder but only a chunk
+    of it with the inner radius and a crack coming off the inner radius.
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    None
+    '''
+    if fileName[-5:] != '.poly':
+        fileName += '.poly'
+    
+    nodeCount = 0 # keep track of the number of nodes so far
+    
+    arcAngle_ = np.deg2rad(arcAngle)
+    ##### Inner radius - the upper nodes are always first
+    nodes1, faces1 = cylinderGeneration(innerRadius,
+                                        blockHeight,
+                                        dTheta=np.pi/180.,
+                                        theta=arcAngle_)
+    nTop = len(nodes1[0])
+    innerCorners = [0, nTop, nTop+1, -1]
+    nodeCount += len(nodes1[0])
+    
+    ##### Outer radius
+    nodes2, faces2 = cylinderGeneration(outerRadius,
+                                        blockHeight,
+                                        dTheta=np.pi/180.,
+                                        theta=arcAngle_)
+    nTop = len(nodes2[0])
+    outerCorners = [0, nTop, nTop+1, -1]
+    outerCorners = [a+nodeCount for a in innerCorners]
+    faces2 += nodeCount
+    nodeCount += len(nodes2[0])
+    
+    bottomFace = np.array([innerCorners[2], innerCorners[3],
+                           outerCorners[3], outerCorners[2]]).reshape((4,1))
+                           
+    sides = np.array([[innerCorners[0], innerCorners[2],
+                           outerCorners[2], outerCorners[0]],
+                           [innerCorners[1], innerCorners[3],
+                           outerCorners[3], outerCorners[1]]]).T
+    
+    allNodes = (nodes1, nodes2)
+    allFaces = (faces1, faces2, bottomFace, sides)
+    nodes = np.hstack(allNodes)
+    faces = np.hstack(allFaces)
+    
+    nNodes = len(nodes[0])
+    nFaces = len(faces[1])
+    
+    print 'nNodes = {}'.format(nNodes)
+    print 'nFaces = {}'.format(nFaces)
+    
+    ##### Write it all out
+    with open(fileName, 'w') as f:
+        # Nodes
+        f.write('# <Number of nodes> <Number of dimensions>\n')
+        f.write('{} 3\n'.format(nNodes))
+        for c1 in range(nNodes):
+            s = '{} '.format(c1+1) + '{} {} {}\n'.format(*nodes[:, c1])
+            f.write(s)
+        
+        # Faces
+        f.write('\n# <Number of facets> <Boundary markers 0 or 1>\n' )
+        f.write('{} 0\n'.format(nFaces))
+        for c1 in range(0, nFaces):
+            f.write('1 0\n')
+            f.write('4 {} {} {} {}\n'.format(*faces[:, c1]))
             
         # Holes
         f.write('# <Number of holes>\n')
