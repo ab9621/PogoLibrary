@@ -43,7 +43,8 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
     '''
     Function to animate the plotting of 2D field data. NEEDS DOCUMENTING
     
-    CURRENTLY BROKEN
+    Now working - the animation has to be returned to stop it being garbage
+    collected.
     '''
     def __animate__(i):
         im.set_array(fullData[:,:,i])
@@ -88,13 +89,9 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
     im = ax.imshow(fullData[:,:,0], origin='lower', extent=extent_,
                    aspect='auto', interpolation='None')
     
-    animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
-                                interval=50, blit=True)
-    if returnFig == True:
-        return fig
-        
-    else:
-        return
+    ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
+                                interval=200, blit=True)
+    return ani
     
 
 def cartesianCombinations(arrays, out=None):
