@@ -8,7 +8,48 @@ creating most models.
 
 import numpy as np
 import pogoFunctions as pf
+import matplotlib.pyplot as plt
 
+def _facetLine_(string):
+    '''
+    NEEDS COMMENTING
+    '''
+    string = string.split(' ')
+    n = int(string[0])
+    return [int(a) for a in string[1:1+n]]
+
+def _genString_(nodeNumbers, nMax=1024):
+    '''
+    NEEDS COMMENTING
+    '''
+    n = len(nodeNumbers)
+    tmp = '{}'.format(n)
+    tmp2 = ' {}'*n
+    tmp2 = tmp2.format(*nodeNumbers)
+    tmp += tmp2 + '\n'
+    tmp = splitString(tmp, nMax, '    ')
+    return tmp
+    
+def _plotLine_(nodes, a, b):
+    '''
+    NEEDS COMMENTING
+    '''
+    a -=1
+    b -=1
+    x = [nodes[a, 1], nodes[b, 1]]
+    y = [nodes[a, 2], nodes[b, 2]]
+    plt.plot(x,y, 'o-')
+    
+def _plotPath_(nodes, path, inds=[0,1]):
+    '''
+    NEEDS COMMENTING
+    '''
+    path = [a-1 for a in path]
+    print path
+    x = nodes[path, inds[0]+1]
+    y = nodes[path, inds[1]+1]
+    plt.plot(x,y,'o-')        
+        
 def block3DPolyFormat(x,y,z,origin=[0.,0.,0.]):
     '''
     Function to generate the nodes and faces of a 3D block in the format used
@@ -177,7 +218,12 @@ def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
         raise ValueError('\norigin must have 3 coordinates')
     
     if theta == None:
-        theta = 2.*np.pi
+        theta = 360.
+        
+    theta = np.deg2rad(theta)
+        
+    if theta > 2.*np.pi:
+        raise ValueError('theta must be in (0, 2.*pi]')
         
     if nPoints == None:
         nPoints = int(theta/dTheta)
@@ -186,7 +232,11 @@ def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
         dTheta= theta/nPoints
     
     theta0_ = np.deg2rad(theta0)
-    points = np.zeros((3, nPoints*2))
+    
+    if theta != 2.*np.pi:
+        nPoints += 1
+    
+    points = np.zeros((3, nPoints*2))    
     c1 = np.linspace(0, nPoints-1, nPoints)*dTheta + theta0_
     
     xs = origin[0] + r*np.cos(c1)
@@ -199,9 +249,12 @@ def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
     c1 = (np.linspace(1, nPoints, nPoints)).astype(int)
     
     facets[0] = np.copy(c1)
-    facets[1] = (np.copy(c1) - 1 + 1) % nPoints + 1
-    facets[2] = np.copy(facets[1]) +nPoints
+    facets[1] = (np.copy(c1)) % nPoints + 1
+    facets[2] = np.copy(facets[1]) + nPoints
     facets[3] = np.copy(c1) + nPoints
+    
+    if theta != 2.*np.pi:
+        facets = facets[:,:-1]
     
     return points, facets
     
@@ -559,8 +612,16 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                                   outerRadius,
                                                   arcAngle,
                                                   blockHeight,
+                                                  probeWidth,
+                                                  probeHeight,
+                                                  probeVAngle,
+                                                  probeRotation,
                                                   size1,
-                                                  size2):
+                                                  size2,
+                                                  crack=False,
+                                                  crackLength=None,
+                                                  crackHeight=None,
+                                                  crackRotation=None):
     '''
     Function to write the poly file for a  delay line on part of a chunk of
     a cylinder. The idea is to not model the whole cylinder but only a chunk
@@ -578,43 +639,135 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     
     nodeCount = 0 # keep track of the number of nodes so far
     
-    arcAngle_ = np.deg2rad(arcAngle)
+    #arcAngle_ = np.deg2rad(arcAngle)
     ##### Inner radius - the upper nodes are always first
     nodes1, faces1 = cylinderGeneration(innerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/180.,
-                                        theta=arcAngle_)
-    nTop = len(nodes1[0])
-    innerCorners = [0, nTop, nTop+1, -1]
+                                        dTheta=np.pi/18.,
+                                        theta=arcAngle,
+                                        theta0=-1.*arcAngle/2.)
+    nTop = len(nodes1[0])/2
+    innerCorners = [1, nTop, nTop+1, 2*nTop]
     nodeCount += len(nodes1[0])
+    innerBaseNodes = np.linspace(1, nTop, nTop)+nTop
+    innerTopNodes = np.linspace(1, nTop, nTop)
     
     ##### Outer radius
     nodes2, faces2 = cylinderGeneration(outerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/180.,
-                                        theta=arcAngle_)
-    nTop = len(nodes2[0])
-    outerCorners = [0, nTop, nTop+1, -1]
-    outerCorners = [a+nodeCount for a in innerCorners]
+                                        dTheta=np.pi/18.,
+                                        theta=arcAngle,
+                                        theta0=-1.*arcAngle/2.)
+    nTop = len(nodes2[0])/2
+    outerCorners = [1, nTop, nTop+1, 2*nTop]
+    outerCorners = [a+nodeCount for a in outerCorners]
     faces2 += nodeCount
+    
+    outerBaseNodes = np.linspace(1, nTop, nTop)+nTop+nodeCount
+    outerBaseNodes = outerBaseNodes[::-1]
+    outerTopNodes = np.linspace(1, nTop, nTop)+nodeCount
+    outerTopNodes = outerTopNodes[::-1]
+    
     nodeCount += len(nodes2[0])
     
-    bottomFace = np.array([innerCorners[2], innerCorners[3],
-                           outerCorners[3], outerCorners[2]]).reshape((4,1))
-                           
+    ##### Bottom face
+    bottom = np.hstack((innerBaseNodes, outerBaseNodes))
+    
+    ##### Side faces
     sides = np.array([[innerCorners[0], innerCorners[2],
                            outerCorners[2], outerCorners[0]],
                            [innerCorners[1], innerCorners[3],
                            outerCorners[3], outerCorners[1]]]).T
     
-    allNodes = (nodes1, nodes2)
-    allFaces = (faces1, faces2, bottomFace, sides)
+    ##### Top cylinder
+    probeJoinCentre = [(innerRadius+outerRadius)/2., 0., blockHeight]
+    nodes3, faces3 = cylinderGeneration(probeWidth/2., 
+                                         probeHeight,
+                                         nPoints=360, 
+                                         origin=probeJoinCentre)
+    
+    nTop = len(nodes3[0])/2
+    
+    ## The bottom face of the cylinder rotation - elongate
+    xMin = np.min(nodes3[0])
+    nodes3[0,nTop:] = xMin + (nodes3[0,nTop:] - xMin)/np.cos(np.deg2rad(probeVAngle))
+    
+    ## Rotate the top nodes
+    rotNodes = np.vstack((np.copy(nodes3[0,:nTop]), np.copy(nodes3[2, :nTop])))
+    rotNodes = pf.rotate2D(rotNodes, -1.*probeVAngle, np.array([xMin, blockHeight]))
+    nodes3[0, :nTop] = np.copy(rotNodes[0])
+    nodes3[2, :nTop] = np.copy(rotNodes[1])
+    
+    ## Rotate the whole face of the transducer - Make sure there is enough material for the rotation
+    nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, np.array([xMin, 0.]))
+    
+    probeJoinCentre[:2] = pf.rotate2D(probeJoinCentre[:2], probeRotation, np.array([xMin, 0.]))
+    
+    faces3 += nodeCount
+    
+    probeBottom = np.linspace(1, nTop, nTop) + nTop + nodeCount
+    probeTop = np.linspace(1, nTop, nTop) + nodeCount
+    
+    nodeCount += len(nodes3[0])
+    
+    ##### Top face
+    topOuterPoly = np.hstack((innerTopNodes, outerTopNodes))
+    topInnerPoly = np.copy(probeBottom)
+    
+    ##### Crack
+    if crack == True:
+        ## Check information supplied
+        if crackLength == None and crackHeight == None:
+            raise ValueError('One of crackLength and crackHeight must be specified.')
+            
+        if crackLength != None and crackHeight == None:
+            crackHeight = crackLength
+            
+        elif crackHeight != None and crackLength == None:
+            crackLength = crackHeight
+            
+        if crackLength > outerRadius - innerRadius:
+            raise ValueError('Crack is wider than the part. Your part is really broken.')
+        
+        if crackHeight > blockHeight:
+            raise ValueError('Crack is taller than the part. Your part is really broken.')
+            
+        ## Set crack origin - the position of the tip
+        crackOrigin = np.array([innerRadius + crackLength, 0., 0.])
+        if crackRotation != None:
+            crackOrigin[:2] = pf.rotate2D(crackOrigin[:2], crackRotation,
+                                          np.array([innerRadius, 0.]))
+        
+        ## Set the crack top join to the part
+        crackTopCentre = np.array([innerRadius, crackHeight, 0.])
+        
+        ## Work out what faces to delete from the inner radius and delete them
+        # Find where the centre nodes are
+        pT = np.array([innerRadius, 0., blockHeight])
+        pB = np.array([innerRadius, 0., 0.])
+        indTop = np.where((nodes1[0]==pT[0]) & (nodes1[1]==pT[1]) &(nodes1[2]==pT[2]))[0]+1
+        indBottom = np.where((nodes1[0]==pB[0]) & (nodes1[1]==pB[1]) &(nodes1[2]==pB[2]))[0]+1
+        
+        facetsToDelete = np.where(faces1 == indTop)[1]
+        faces1 = np.delete(faces1, facetsToDelete, 1)
+        
+        ## Fix the crack width for now
+        crackWidth = 0.1E-3
+        
+         
+        
+    allNodes = (nodes1, nodes2, nodes3)
+    allFaces = (faces1, faces2, sides, faces3) #but not the bottom or top
     nodes = np.hstack(allNodes)
     faces = np.hstack(allFaces)
     
-    nNodes = len(nodes[0])
-    nFaces = len(faces[1])
+    nodes[np.abs(nodes) < 1E-15] = 0.0
     
+    nNodes = len(nodes[0])
+    nFaces = len(faces[0]) + 1 + 1 + 1 + 1 #special faces are top and bottom of block and probe
+    nBlitzWrite = len(faces[0])
+    
+
     print 'nNodes = {}'.format(nNodes)
     print 'nFaces = {}'.format(nFaces)
     
@@ -630,16 +783,36 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         # Faces
         f.write('\n# <Number of facets> <Boundary markers 0 or 1>\n' )
         f.write('{} 0\n'.format(nFaces))
-        for c1 in range(0, nFaces):
+        fCount = 0
+        for c1 in range(0, nBlitzWrite):
+            fCount += 1
             f.write('1 0\n')
             f.write('4 {} {} {} {}\n'.format(*faces[:, c1]))
             
+        # Bottom face
+        f.write('1 0\n')
+        f.write(_genString_(bottom))
+        
+        # Top face of block
+        f.write('2 1\n')
+        f.write(_genString_(topOuterPoly))
+        f.write(_genString_(topInnerPoly))        
+        f.write('1 {} {} {}\n'.format(*probeJoinCentre))
+        
+        # Bottom of cylinder
+        f.write('1 0\n')
+        f.write(_genString_(probeBottom))
+        
+        # Top of cylinder
+        f.write('1 0\n')
+        f.write(_genString_(probeTop))
+        
         # Holes
-        f.write('# <Number of holes>\n')
+        f.write('\n# <Number of holes>\n')
         f.write('0\n')
         
         # Regions
-        f.write('# <Number of regions>\n')
+        f.write('\n# <Number of regions>\n')
         f.write('0')
     return
     
