@@ -737,9 +737,9 @@ def loadNodeFile(fileName, nDims=3, regionAttributes=False):
             nodes = nodes[1:-1]
     else:
         if nDims == 3:
-            nodes = nodes[1:-2]
+            nodes = nodes[1:-1]
         elif nDims == 2:
-            nodes = nodes[1:-3]
+            nodes = nodes[1:-2]
     return nodes     
 
 def minEdgeLength(nodes, elements):

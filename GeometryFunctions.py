@@ -29,6 +29,22 @@ def _genString_(nodeNumbers, nMax=1024):
     tmp += tmp2 + '\n'
     tmp = splitString(tmp, nMax, '    ')
     return tmp
+
+def _normaliseVector_(vector):
+    '''
+    Function to normalise a vector
+    
+    Parameters
+    ----------
+    vector : array, float
+        The vector to be normalised. May have any length.
+        
+    Returns
+    -------
+    vector : array, float
+        The normalised vector.
+    '''
+    return vector*1./np.sqrt(np.sum(vector*vector))
     
 def _plotLine_(nodes, a, b):
     '''
@@ -48,7 +64,25 @@ def _plotPath_(nodes, path, inds=[0,1]):
     print path
     x = nodes[path, inds[0]+1]
     y = nodes[path, inds[1]+1]
-    plt.plot(x,y,'o-')        
+    plt.plot(x,y,'o-')
+    return
+    
+def _solveQuadratic_(a,b,c):
+    '''
+    Function to solve a quadratic equation of form ax^2 + bx + c = 0. Returns
+    the minimum value or None is there is no real solution. Designed to be
+    used in ray tracing calculations.
+    '''
+    det = b*b - 4*a*c
+    
+    if det < 0:
+        return None
+        
+    else:
+        x1 = (-1.*b + np.sqrt(det))/(2.*a)
+        x2 = (-1.*b - np.sqrt(det))/(2.*a)
+        return min([x1,x2])
+     
         
 def block3DPolyFormat(x,y,z,origin=[0.,0.,0.]):
     '''
@@ -364,6 +398,118 @@ def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
         
     return
 
+def rayCylinderIntersectionPoint(rayOrigin, rayVector, cylinderCentre,
+                                 cylinderRadius, cylinderVector=None,
+                                 cylinderHeight=None):
+    '''
+    Function to find the intersection of a ray with an arbitrarily angled
+    cylinder.
+    
+    NEEDS COMMENTING
+    '''
+    if cylinderVector == None:
+        cylinderVector = np.array([0., 0., 1.])
+        
+    else:
+        cylinderVector = _normaliseVector_(cylinderVector)
+    
+    tmp1 = rayVector - np.dot(rayVector, cylinderVector)*cylinderVector
+    dp = rayOrigin - cylinderCentre
+    tmp2 = dp - np.dot(dp, cylinderVector)*cylinderVector
+    
+    A = np.dot(tmp1, tmp1)
+    B = 2.*np.dot(tmp1, tmp2)
+    C = np.dot(tmp2, tmp2) - cylinderRadius**2
+    
+    infCylinderIntersectionT = _solveQuadratic_(A, B, C)
+    
+    if infCylinderIntersectionT == None or infCylinderIntersectionT < 0:
+        ## No intersection
+        print 'No intersection found.'
+        return None
+    
+    elif cylinderHeight == None:
+        ## Infinite cylinder
+        return rayOrigin + rayVector*infCylinderIntersectionT
+        
+    else:
+        ## Finite cylinder
+    
+        # Define the caps
+        pTop = cylinderCentre + cylinderVector*cylinderHeight/2.
+        pBottom = cylinderCentre - cylinderVector*cylinderHeight/2.
+        vTop = np.copy(cylinderVector)
+        vBottom = np.copy(cylinderVector)*-1.
+        
+        # Test if intersection lies within the caps
+        if np.dot(cylinderVector, rayOrigin+infCylinderIntersectionT*rayVector-pBottom) > 0:
+            if np.dot(cylinderVector, rayOrigin+infCylinderIntersectionT*rayVector-pTop) < 0:
+                infCylinderIntersectionT *= -1
+        
+        # Test if intersection is on caps
+        tTop = rayPlaneIntersection(rayOrigin, rayVector, pTop, vTop)
+        tBottom = rayPlaneIntersection(rayOrigin, rayVector, pBottom, vBottom)
+
+        ts = np.array([tTop, tBottom, infCylinderIntersectionT])
+        try:
+            tMin = np.min(ts[ts>0])
+        except:
+            tMin = None
+        
+        return rayOrigin + tMin*rayVector
+
+def rayPlaneIntersection(rayOrigin, rayVector, planePoint, planeVector,
+                         returnTime=True):
+    '''
+    Function to calculate the ray plane intersection using the point normal
+    method.
+    
+    NEEDS COMMENTING
+    '''
+    rayVector = _normaliseVector_(rayVector)
+    planeVector = _normaliseVector_(planeVector)
+    
+    denom = np.dot(rayVector, planeVector)
+    if denom == 0.:
+        print 'ray is parallel to plane'
+        return None
+    else:
+        t = np.dot(planePoint-rayOrigin, planeVector)/denom
+        
+    if returnTime == True:
+        return t
+    
+    else:
+        return rayOrigin + rayVector*t
+        
+    
+def raySphereInstersetion(circleOrigin, circleRadius, rayOrigin, rayPath):
+    '''
+    Function to find the intersection points of a ray with a sphere or circle
+    
+    NEEDS COMMENTING
+    '''
+    if (len(circleOrigin) != len(rayOrigin) and len(rayOrigin) != len(rayPath)):
+        raise ValueError('Circle origin, ray origin and ray path must all have the same number of dimensions')
+    
+    nDims = len(circleOrigin)
+    B = 0
+    C = 0
+    for c1 in range(nDims):
+        B += 2. * rayPath[c1] * (rayOrigin[c1] - circleOrigin[c1])
+        C += np.power(rayOrigin[c1] - circleOrigin[c1], 2)
+        
+    C -= circleRadius*circleRadius
+    
+    t1 = (-1.*B - np.sqrt(B*B-4.*C))/2.
+    t2 = (-1.*B + np.sqrt(B*B-4.*C))/2.
+    
+    tmin = min((t1, t2))
+    
+    intersectionPoint = rayOrigin + rayPath * tmin
+    
+    return intersectionPoint
+    
 def pointsNotInCrack2D(leftIntersection, rightIntersection, circlePoints):
     '''
     Function to find the points which are not region where the defect joins 
@@ -448,34 +594,6 @@ def splitString(string, n, insertString=None):
         count += len(toAdd)
     
     return newString
-    
-    
-
-    
-def sphereRayInstersetion(circleOrigin, circleRadius, rayOrigin, rayPath):
-    '''
-    Function to find the intersection points of a ray with a sphere or circle
-    '''
-    if (len(circleOrigin) != len(rayOrigin) and len(rayOrigin) != len(rayPath)):
-        raise ValueError('Circle origin, ray origin and ray path must all have the same number of dimensions')
-    
-    nDims = len(circleOrigin)
-    B = 0
-    C = 0
-    for c1 in range(nDims):
-        B += 2. * rayPath[c1] * (rayOrigin[c1] - circleOrigin[c1])
-        C += np.power(rayOrigin[c1] - circleOrigin[c1], 2)
-        
-    C -= circleRadius*circleRadius
-    
-    t1 = (-1.*B - np.sqrt(B*B-4.*C))/2.
-    t2 = (-1.*B + np.sqrt(B*B-4.*C))/2.
-    
-    tmin = min((t1, t2))
-    
-    intersectionPoint = rayOrigin + rayPath * tmin
-    
-    return intersectionPoint
 
 def rect2DPolyFormat(x,y,origin=[0.,0.,0.]):
     '''
@@ -616,12 +734,14 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                                   probeHeight,
                                                   probeVAngle,
                                                   probeRotation,
+                                                  probeCentre,
                                                   size1,
                                                   size2,
                                                   crack=False,
                                                   crackLength=None,
                                                   crackHeight=None,
-                                                  crackRotation=None):
+                                                  crackRotation=None,
+                                                  returnTransProperties=False):
     '''
     Function to write the poly file for a  delay line on part of a chunk of
     a cylinder. The idea is to not model the whole cylinder but only a chunk
@@ -639,11 +759,10 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     
     nodeCount = 0 # keep track of the number of nodes so far
     
-    #arcAngle_ = np.deg2rad(arcAngle)
     ##### Inner radius - the upper nodes are always first
     nodes1, faces1 = cylinderGeneration(innerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/18.,
+                                        dTheta=np.pi/72.,
                                         theta=arcAngle,
                                         theta0=-1.*arcAngle/2.)
     nTop = len(nodes1[0])/2
@@ -655,7 +774,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     ##### Outer radius
     nodes2, faces2 = cylinderGeneration(outerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/18.,
+                                        dTheta=np.pi/72.,
                                         theta=arcAngle,
                                         theta0=-1.*arcAngle/2.)
     nTop = len(nodes2[0])/2
@@ -680,11 +799,10 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                            outerCorners[3], outerCorners[1]]]).T
     
     ##### Top cylinder
-    probeJoinCentre = [(innerRadius+outerRadius)/2., 0., blockHeight]
     nodes3, faces3 = cylinderGeneration(probeWidth/2., 
                                          probeHeight,
                                          nPoints=360, 
-                                         origin=probeJoinCentre)
+                                         origin=probeCentre)
     
     nTop = len(nodes3[0])/2
     
@@ -701,7 +819,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     ## Rotate the whole face of the transducer - Make sure there is enough material for the rotation
     nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, np.array([xMin, 0.]))
     
-    probeJoinCentre[:2] = pf.rotate2D(probeJoinCentre[:2], probeRotation, np.array([xMin, 0.]))
+    probeCentre[:2] = pf.rotate2D(probeCentre[:2], probeRotation, np.array([xMin, 0.]))
     
     faces3 += nodeCount
     
@@ -739,24 +857,49 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                           np.array([innerRadius, 0.]))
         
         ## Set the crack top join to the part
-        crackTopCentre = np.array([innerRadius, crackHeight, 0.])
+        crackTopCentre = np.array([innerRadius, 0., crackHeight])
         
         ## Work out what faces to delete from the inner radius and delete them
         # Find where the centre nodes are
         pT = np.array([innerRadius, 0., blockHeight])
         pB = np.array([innerRadius, 0., 0.])
-        indTop = np.where((nodes1[0]==pT[0]) & (nodes1[1]==pT[1]) &(nodes1[2]==pT[2]))[0]+1
-        indBottom = np.where((nodes1[0]==pB[0]) & (nodes1[1]==pB[1]) &(nodes1[2]==pB[2]))[0]+1
+        indTop = np.where((nodes1[0]==pT[0]) & (nodes1[1]==pT[1]) &(nodes1[2]==pT[2]))[0][0]+1
+        indBottom = np.where((nodes1[0]==pB[0]) & (nodes1[1]==pB[1]) &(nodes1[2]==pB[2]))[0][0]+1
         
         facetsToDelete = np.where(faces1 == indTop)[1]
         faces1 = np.delete(faces1, facetsToDelete, 1)
         
         ## Fix the crack width for now
         crackWidth = 0.1E-3
+        leftVector = np.array([innerRadius-crackOrigin[0], -1.*crackWidth/2., 0.])
+        rightVector = np.array([innerRadius-crackOrigin[0], crackWidth/2., 0.])
+        leftSurfNorm = np.cross(pB-pT, (nodes1[:,indTop-2]-nodes1[:, indTop-1]).T)
+        rightSurfNorm = np.cross(pB-pT, (nodes1[:,indTop]-nodes1[:, indTop-1]).T)
+
+        rightIntersect = rayPlaneIntersection(crackOrigin, rightVector,
+                                              nodes1[:,indTop-1], rightSurfNorm,
+                                              returnTime=False)
+                                              
+        leftIntersect = rayPlaneIntersection(crackOrigin, leftVector,
+                                             nodes1[:,indTop-1], leftSurfNorm,
+                                             returnTime=False)
+
+        crackNodes = np.vstack((crackOrigin, leftIntersect, rightIntersect,
+                                crackTopCentre)).T
+        crackFaces = [np.array([1,2,4])+nodeCount,
+                       np.array([1,3,4])+nodeCount,
+                       np.array([indTop-1, indTop, nodeCount+4, nodeCount+2, indBottom-1]),
+                       np.array([indTop, indTop+1, indBottom+1, nodeCount+3, nodeCount+4])]
+                                     
+        # Udpdate the bottom face - this is a much neater way of doing it
+        insertInd = np.where(bottom == indBottom)[0]
+        bottom[insertInd] = 2+nodeCount
+        bottom = np.insert(bottom, insertInd+1, np.array([1+nodeCount, 3+nodeCount]))
         
-         
-        
-    allNodes = (nodes1, nodes2, nodes3)
+    if crack == True:                           
+        allNodes = (nodes1, nodes2, nodes3, crackNodes)
+    else:
+        allNodes = (nodes1, nodes2, nodes3)
     allFaces = (faces1, faces2, sides, faces3) #but not the bottom or top
     nodes = np.hstack(allNodes)
     faces = np.hstack(allFaces)
@@ -764,7 +907,10 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     nodes[np.abs(nodes) < 1E-15] = 0.0
     
     nNodes = len(nodes[0])
-    nFaces = len(faces[0]) + 1 + 1 + 1 + 1 #special faces are top and bottom of block and probe
+    #special faces are top and bottom of block and probe and 4 for the crack
+    nFaces = len(faces[0]) + 1 + 1 + 1 + 1 #should be +8 total
+    if crack == True:
+        nFaces += 4
     nBlitzWrite = len(faces[0])
     
 
@@ -775,7 +921,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     with open(fileName, 'w') as f:
         # Nodes
         f.write('# <Number of nodes> <Number of dimensions>\n')
-        f.write('{} 3\n'.format(nNodes))
+        f.write('{} 3 0 0\n'.format(nNodes))
         for c1 in range(nNodes):
             s = '{} '.format(c1+1) + '{} {} {}\n'.format(*nodes[:, c1])
             f.write(s)
@@ -797,7 +943,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write('2 1\n')
         f.write(_genString_(topOuterPoly))
         f.write(_genString_(topInnerPoly))        
-        f.write('1 {} {} {}\n'.format(*probeJoinCentre))
+        f.write('1 {} {} {}\n'.format(*probeCentre))
         
         # Bottom of cylinder
         f.write('1 0\n')
@@ -807,14 +953,40 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write('1 0\n')
         f.write(_genString_(probeTop))
         
+        if crack == True:
+            # Crack faces
+            for c1 in range(len(crackFaces)):
+                f.write('1 0\n')
+                f.write(_genString_(crackFaces[c1]))
+        
         # Holes
         f.write('\n# <Number of holes>\n')
         f.write('0\n')
         
         # Regions
         f.write('\n# <Number of regions>\n')
-        f.write('0')
-    return
+        f.write('2\n')
+        if crack == True:
+            f.write('1 {} {} {} 1 {:.12f}\n'.format(crackOrigin[0], crackOrigin[1],
+            blockHeight/2., size1))
+        else:
+            midBlock = 0.5*(np.average(nodes1, axis=1) + np.average(nodes2, axis=1))
+            f.write('1 {} {} {} 1 {:.15f}\n'.format(midBlock[0], midBlock[1],
+            blockHeight/2., size1))
+        midProbe = np.average(nodes3, axis=1)
+        f.write('2 {} {} {} 2 {:.15f}\n'.format(midProbe[0], midProbe[1],
+                midProbe[2], size2))
+    
+    if returnTransProperties == True:
+        nTop = len(nodes3)/2
+        point = np.average(nodes3[:,:nTop],axis=1)
+        v1 = nodes3[:,0] - nodes3[:,1]
+        v2 = nodes3[:,1] - nodes3[:,2]
+        vector = np.cross(v1, v2)
+        return point, _normaliseVector_(vector)
+        
+    else:
+        return
     
 def writeTwoLayerRectanglePolyFile(x, y1, y2, fileName, origin=[0.0, 0.0],
                                    size1=None, size2=None):
@@ -875,7 +1047,7 @@ def writeTwoLayerRectanglePolyFile(x, y1, y2, fileName, origin=[0.0, 0.0],
     with open(fileName, 'w') as f:
         # Write out the corners
         f.write('# <Number of vertices> <Number of dimensions> <Number of attributes> <Boundary markers 0 or 1>\n')
-        f.write('{} 2 2 0\n'.format(len(corners)))
+        f.write('{} 2 1 0\n'.format(len(corners)))
         
         for c1 in range(len(corners)):
             string = '{}'.format(c1+1)
@@ -901,8 +1073,8 @@ def writeTwoLayerRectanglePolyFile(x, y1, y2, fileName, origin=[0.0, 0.0],
             size2 = -1
             
         f.write('2\n')
-        f.write('1 {} {} 0 {:.12f}\n'.format(x/2, y1/2, size1))
-        f.write('2 {} {} 1 {:.12f}\n'.format(x/2, y1+y2/2, size2))
+        f.write('1 {} {} 1 {:.12f}\n'.format(x/2, y1/2, size1))
+        f.write('2 {} {} 2 {:.12f}\n'.format(x/2, y1+y2/2, size2))
         
         
     return
