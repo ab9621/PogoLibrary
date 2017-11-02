@@ -971,7 +971,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write('\n# <Number of regions>\n')
         f.write('2\n')
         if crack == True:
-            f.write('1 {} {} {} 1 {:.12f}\n'.format(crackOrigin[0], crackOrigin[1],
+            f.write('1 {} {} {} 1 {:.15f}\n'.format(crackOrigin[0], crackOrigin[1],
             blockHeight/2., size1))
         else:
             midBlock = 0.5*(np.average(nodes1, axis=1) + np.average(nodes2, axis=1))
