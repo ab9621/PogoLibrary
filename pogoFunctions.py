@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import scipy.interpolate as si
 import itertools
 import matplotlib.animation as animate
+import scipy.signal as ss
 
 def __criticalCalc__(a,b):
     '''
@@ -742,6 +743,50 @@ def loadNodeFile(fileName, nDims=3, regionAttributes=False):
             nodes = nodes[1:-2]
     return nodes     
 
+def maxInGate(trace, gateCentre, gateWidth, hilbert=False):
+    '''
+    Function to calculate the maximum value in a gate of a signal.
+    
+    Parameters
+    ----------
+    trace : array, float
+        The data in the form (2, nTimePoint) where trace[0] is the time base
+        and trace[1] is the amplitude data.
+        
+    gateCentre : float
+        The time of the centre of the gate.
+        
+    gateWidth : float
+        The width of the gate in time. Must not be zero.
+        
+    hilbert : boolean, optional
+        Whether to use the hilbert envelope of the ampltiude data. Default is
+        False in which case it is not used.
+        
+    Returns
+    -------
+    maxVal : float
+        The maximum amplitude in the gate.
+    '''
+    if gateWidth <= 0.:
+        raise ValueError('gateWidth must be > 0.0.')
+        
+    if gateCentre < trace[0,0]:
+        raise ValueError('gateCentre must be > first time value.')
+        
+    if hilbert == True:
+        data = np.abs(ss.hilbert(trace[1]))
+        
+    else:
+        data = trace[1]
+        
+    ind1 = np.where(trace[0] >= gateCentre-gateWidth/2.)[0][0]
+    ind2 = np.where(trace[0] <= gateCentre+gateWidth/2.)[0][-1] + 1
+    
+    maxVal = np.max(data[ind1:ind2])
+    
+    return maxVal
+        
 def minEdgeLength(nodes, elements):
     '''
     Function to find the minimum edge length of any element in a mesh.

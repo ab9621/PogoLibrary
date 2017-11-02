@@ -741,7 +741,8 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                                   crackLength=None,
                                                   crackHeight=None,
                                                   crackRotation=None,
-                                                  returnTransProperties=False):
+                                                  returnTransProperties=False,
+                                                  blockRotation=None):
     '''
     Function to write the poly file for a  delay line on part of a chunk of
     a cylinder. The idea is to not model the whole cylinder but only a chunk
@@ -758,13 +759,16 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         fileName += '.poly'
     
     nodeCount = 0 # keep track of the number of nodes so far
+    tempStore = np.copy(probeCentre)
     
+    if blockRotation == None:
+        blockRotation = arcAngle/2.
     ##### Inner radius - the upper nodes are always first
     nodes1, faces1 = cylinderGeneration(innerRadius,
                                         blockHeight,
                                         dTheta=np.pi/72.,
                                         theta=arcAngle,
-                                        theta0=-1.*arcAngle/2.)
+                                        theta0=-1.*blockRotation)
     nTop = len(nodes1[0])/2
     innerCorners = [1, nTop, nTop+1, 2*nTop]
     nodeCount += len(nodes1[0])
@@ -776,7 +780,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                         blockHeight,
                                         dTheta=np.pi/72.,
                                         theta=arcAngle,
-                                        theta0=-1.*arcAngle/2.)
+                                        theta0=-1.*blockRotation)
     nTop = len(nodes2[0])/2
     outerCorners = [1, nTop, nTop+1, 2*nTop]
     outerCorners = [a+nodeCount for a in outerCorners]
@@ -817,9 +821,9 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     nodes3[2, :nTop] = np.copy(rotNodes[1])
     
     ## Rotate the whole face of the transducer - Make sure there is enough material for the rotation
-    nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, np.array([xMin, 0.]))
+    nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, np.array([xMin, tempStore[1]]))
     
-    probeCentre[:2] = pf.rotate2D(probeCentre[:2], probeRotation, np.array([xMin, 0.]))
+    probeCentre[:2] = pf.rotate2D(probeCentre[:2], probeRotation, np.array([xMin, tempStore[1]]))
     
     faces3 += nodeCount
     
@@ -978,11 +982,21 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                 midProbe[2], size2))
     
     if returnTransProperties == True:
-        nTop = len(nodes3)/2
-        point = np.average(nodes3[:,:nTop],axis=1)
+        # Find the centre of the top of the probe and swing it round as before
+        point = np.copy(tempStore)
+        point[2] += probeHeight
+        z = np.array([point[0], point[2]])
+        z = pf.rotate2D(z, -1.*probeVAngle, np.array([xMin, blockHeight]))
+        point[0] = z[0]
+        point[2] = z[1]
+        point[:2] = pf.rotate2D(point[:2], probeRotation, np.array([xMin, tempStore[1]]))
+        
+        # Create a normal vector for the surface
         v1 = nodes3[:,0] - nodes3[:,1]
         v2 = nodes3[:,1] - nodes3[:,2]
         vector = np.cross(v1, v2)
+        
+        # Return it all
         return point, _normaliseVector_(vector)
         
     else:
