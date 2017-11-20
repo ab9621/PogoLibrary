@@ -121,8 +121,7 @@ def Analyse(filename,
     fftfreq = np.fft.fftfreq(nPoints, dt)
     fftfreq = fftfreq[:nPoints2]
     
-    plt.clf()
-    plt.figure(1)
+    plt.figure()
     
     if mapPlot == False:
         

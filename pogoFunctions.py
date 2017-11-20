@@ -329,6 +329,8 @@ def findNodesInTransducerAngledPlane(nodes, transducerCentre, xWidth, plane,
         nodeInds = np.where((rs <= (xWidth/2)**2*1.001) & (np.isclose(dp, 0.)))[0]
         
     return nodeInds
+
+
     
 def gaussianAngledBeam(transducerNodes, 
                        verticalAngle, 
@@ -546,8 +548,33 @@ def gaussTone(t, tau, f0):
         The amplitudes at all times of the tone burst.
     '''
     
-    return np.exp(-1.*np.power((t-tau)/(1/(1.0*f0)), 2)) * np.sin(2*np.pi*f0*(t-tau))
+    return np.exp(-1.*np.power((t-tau)/(1/f0), 2)) * np.sin(2*np.pi*f0*(t-tau))
 
+def gaussianFilter(trace, centreFreq, sd):
+    '''
+    Function to do filtering in the frequency domain.
+    
+    NEEDS COMMENTING
+    '''
+    trace_ = np.copy(trace)
+    nt = len(trace_[0])
+    n2 = nt/2+1
+    
+    spec = np.fft.fft(trace_[1])
+    spec = spec[:n2]
+    
+    freq = np.fft.fftfreq(nt, trace_[0,1]-trace_[0,0])
+    freq = freq[:n2]
+    freq = np.exp(-1.*((freq-centreFreq)/sd)**2)
+    #plt.figure()
+    #plt.plot(np.abs(spec)*freq)
+    #plt.figure()
+    
+    f = 2.*np.real(np.fft.ifft(freq*spec, n=nt))
+    #plt.plot(f)
+    #plt.figure()
+    return f
+    
 def hanningBeamProfile(nodes, 
                         transducerCentre,
                         transXWidth,
@@ -823,6 +850,23 @@ def minEdgeLength(nodes, elements):
     minDistance = np.sqrt(minDistance)        
     return minDistance
 
+def nodesOnBoundary(elements, regions):
+    '''
+    Function to find the nodes that lie on a boundary between two interfaces.
+    Currently only works for 2 regions.
+    
+    NEEDS COMMENTING
+    '''
+    order = np.argsort(regions)
+    regions[:] = regions[order]
+    elements[:,:] = elements[:,order]
+    ind = np.where(regions>regions[0])[0][0]
+    set1 = np.unique(elements[:,:ind])
+    set2 = np.unique(elements[:,ind:])
+    res = np.intersect1d(set1, set2, assume_unique=True)
+    print np.shape(res)
+    return res
+    
 def plot2Dmesh(nodes, elements, returnFig=False):
     '''
     Function to plot a graph of a 2D mesh. WARNING this will break for large

@@ -75,7 +75,7 @@ def _solveQuadratic_(a,b,c):
     '''
     det = b*b - 4*a*c
     
-    if det < 0:
+    if det < 0.:
         return None
         
     else:
@@ -289,7 +289,7 @@ def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
     
     if theta != 2.*np.pi:
         facets = facets[:,:-1]
-    
+
     return points, facets
     
 def delayLineOnBlock2DPolyFile(fileName, x1, x2, y1, y2, angle,
@@ -742,7 +742,8 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
                                                   crackHeight=None,
                                                   crackRotation=None,
                                                   returnTransProperties=False,
-                                                  blockRotation=None):
+                                                  blockRotation=None,
+                                                  path=None):
     '''
     Function to write the poly file for a  delay line on part of a chunk of
     a cylinder. The idea is to not model the whole cylinder but only a chunk
@@ -760,25 +761,28 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     
     nodeCount = 0 # keep track of the number of nodes so far
     tempStore = np.copy(probeCentre)
+    print probeCentre
     
     if blockRotation == None:
         blockRotation = arcAngle/2.
+        
     ##### Inner radius - the upper nodes are always first
     nodes1, faces1 = cylinderGeneration(innerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/72.,
+                                        dTheta=np.pi/180.,
                                         theta=arcAngle,
                                         theta0=-1.*blockRotation)
+                                      
     nTop = len(nodes1[0])/2
     innerCorners = [1, nTop, nTop+1, 2*nTop]
     nodeCount += len(nodes1[0])
-    innerBaseNodes = np.linspace(1, nTop, nTop)+nTop
+    innerBaseNodes = np.linspace(1, nTop, nTop).astype(int)+nTop
     innerTopNodes = np.linspace(1, nTop, nTop)
     
     ##### Outer radius
     nodes2, faces2 = cylinderGeneration(outerRadius,
                                         blockHeight,
-                                        dTheta=np.pi/72.,
+                                        dTheta=np.pi/180.,
                                         theta=arcAngle,
                                         theta0=-1.*blockRotation)
     nTop = len(nodes2[0])/2
@@ -786,9 +790,9 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     outerCorners = [a+nodeCount for a in outerCorners]
     faces2 += nodeCount
     
-    outerBaseNodes = np.linspace(1, nTop, nTop)+nTop+nodeCount
+    outerBaseNodes = np.linspace(1, nTop, nTop).astype(int)+nTop+nodeCount
     outerBaseNodes = outerBaseNodes[::-1]
-    outerTopNodes = np.linspace(1, nTop, nTop)+nodeCount
+    outerTopNodes = np.linspace(1, nTop, nTop).astype(int)+nodeCount
     outerTopNodes = outerTopNodes[::-1]
     
     nodeCount += len(nodes2[0])
@@ -805,7 +809,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     ##### Top cylinder
     nodes3, faces3 = cylinderGeneration(probeWidth/2., 
                                          probeHeight,
-                                         nPoints=360, 
+                                         nPoints=181, 
                                          origin=probeCentre)
     
     nTop = len(nodes3[0])/2
@@ -821,20 +825,24 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     nodes3[2, :nTop] = np.copy(rotNodes[1])
     
     ## Rotate the whole face of the transducer - Make sure there is enough material for the rotation
-    nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, np.array([xMin, tempStore[1]]))
+    tempCentre = np.array([xMin+(tempStore[0] - xMin)/np.cos(np.deg2rad(probeVAngle)), tempStore[1]])
+    print tempCentre
+    if path != None:
+        np.save(r'{}\{}.npy'.format(path, 'tempCentre'), tempCentre)
+    nodes3[:2, :] = pf.rotate2D(nodes3[:2, :], probeRotation, tempCentre)
     
-    probeCentre[:2] = pf.rotate2D(probeCentre[:2], probeRotation, np.array([xMin, tempStore[1]]))
+    probeCentre[:2] = pf.rotate2D(probeCentre[:2], probeRotation, tempCentre)
     
     faces3 += nodeCount
     
-    probeBottom = np.linspace(1, nTop, nTop) + nTop + nodeCount
-    probeTop = np.linspace(1, nTop, nTop) + nodeCount
+    probeBottom = np.linspace(1, nTop, nTop).astype(int) + nTop + nodeCount
+    probeTop = np.linspace(1, nTop, nTop).astype(int) + nodeCount
     
     nodeCount += len(nodes3[0])
     
     ##### Top face
-    topOuterPoly = np.hstack((innerTopNodes, outerTopNodes))
-    topInnerPoly = np.copy(probeBottom)
+    topOuterPoly = np.hstack((innerTopNodes, outerTopNodes)).astype(int)
+    topInnerPoly = np.copy(probeBottom).astype(int)
     
     ##### Crack
     if crack == True:
@@ -875,8 +883,8 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         
         ## Fix the crack width for now
         crackWidth = 0.1E-3
-        leftVector = np.array([innerRadius-crackOrigin[0], -1.*crackWidth/2., 0.])
-        rightVector = np.array([innerRadius-crackOrigin[0], crackWidth/2., 0.])
+        leftVector = np.array([innerRadius-crackOrigin[0], -1.*crackWidth/2.-crackOrigin[1], 0.])
+        rightVector = np.array([innerRadius-crackOrigin[0], crackWidth/2.-crackOrigin[1], 0.])
         leftSurfNorm = np.cross(pB-pT, (nodes1[:,indTop-2]-nodes1[:, indTop-1]).T)
         rightSurfNorm = np.cross(pB-pT, (nodes1[:,indTop]-nodes1[:, indTop-1]).T)
 
@@ -904,6 +912,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         allNodes = (nodes1, nodes2, nodes3, crackNodes)
     else:
         allNodes = (nodes1, nodes2, nodes3)
+    
     allFaces = (faces1, faces2, sides, faces3) #but not the bottom or top
     nodes = np.hstack(allNodes)
     faces = np.hstack(allFaces)
@@ -912,7 +921,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     
     nNodes = len(nodes[0])
     #special faces are top and bottom of block and probe and 4 for the crack
-    nFaces = len(faces[0]) + 1 + 1 + 1 + 1 #should be +8 total
+    nFaces = len(faces[0]) + 1 + 1 + 1 #+ 1 #should be +4 total
     if crack == True:
         nFaces += 4
     nBlitzWrite = len(faces[0])
@@ -927,7 +936,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write('# <Number of nodes> <Number of dimensions>\n')
         f.write('{} 3 0 0\n'.format(nNodes))
         for c1 in range(nNodes):
-            s = '{} '.format(c1+1) + '{} {} {}\n'.format(*nodes[:, c1])
+            s = '{} '.format(c1+1) + '{:.10f} {:.10f} {:.10f}\n'.format(*nodes[:, c1])
             f.write(s)
         
         # Faces
@@ -944,14 +953,14 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write(_genString_(bottom))
         
         # Top face of block
-        f.write('2 1\n')
+        f.write('2 0\n')
         f.write(_genString_(topOuterPoly))
         f.write(_genString_(topInnerPoly))        
-        f.write('1 {} {} {}\n'.format(*probeCentre))
+#        f.write('1 {} {} {}\n'.format(*probeCentre))
         
-        # Bottom of cylinder
-        f.write('1 0\n')
-        f.write(_genString_(probeBottom))
+#        # Bottom of cylinder
+#        f.write('1 0\n')
+#        f.write(_genString_(probeBottom))
         
         # Top of cylinder
         f.write('1 0\n')
@@ -971,7 +980,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write('\n# <Number of regions>\n')
         f.write('2\n')
         if crack == True:
-            f.write('1 {} {} {} 1 {:.15f}\n'.format(crackOrigin[0], crackOrigin[1],
+            f.write('1 {:.10f} {:.10f} {:.10f} 1 {:.15f}\n'.format(crackOrigin[0], crackOrigin[1],
             blockHeight/2., size1))
         else:
             midBlock = 0.5*(np.average(nodes1, axis=1) + np.average(nodes2, axis=1))
@@ -989,7 +998,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         z = pf.rotate2D(z, -1.*probeVAngle, np.array([xMin, blockHeight]))
         point[0] = z[0]
         point[2] = z[1]
-        point[:2] = pf.rotate2D(point[:2], probeRotation, np.array([xMin, tempStore[1]]))
+        point[:2] = pf.rotate2D(point[:2], probeRotation, tempCentre)
         
         # Create a normal vector for the surface
         v1 = nodes3[:,0] - nodes3[:,1]

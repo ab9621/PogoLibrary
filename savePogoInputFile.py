@@ -504,7 +504,8 @@ def writePogoInputFile(fileName,
                 hist = np.hstack((hist,r))
                 
             if len(np.unique(hist)) != len(hist):
-                raise ValueError('Duplicate degrees of freedom for the same node(s) found.')
+                print 'Duplicate degrees of freedom for the same node(s) found. Calculating unique ones.'
+                hist = np.unique(hist)
                 
             nMeas = np.array([len(hist),], dtype='int32')
             nMeas.tofile(f)
