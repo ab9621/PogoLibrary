@@ -706,7 +706,7 @@ def write3DBlockPolyFile(x,y,z,fileName,origin=[0.,0.,0.]):
         f.write('# <Number of nodes> <Number of dimensions>\n')
         f.write('8 3\n')
         for c1 in range(1, 9):
-            s = '{} '.format(c1) + '{} {} {}\n'.format(*nodes[c1])
+            s = '{} '.format(c1) + '{} {} {}\n'.format(*nodes[c1-1])
             f.write(s)
         
         # Faces
@@ -921,7 +921,7 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
     
     nNodes = len(nodes[0])
     #special faces are top and bottom of block and probe and 4 for the crack
-    nFaces = len(faces[0]) + 1 + 1 + 1 #+ 1 #should be +4 total
+    nFaces = len(faces[0]) + 1 + 1 + 1 + 1 #should be +4 total
     if crack == True:
         nFaces += 4
     nBlitzWrite = len(faces[0])
@@ -953,14 +953,14 @@ def writeDelayLineOnPartCylinderWithCrackPolyFile(fileName,
         f.write(_genString_(bottom))
         
         # Top face of block
-        f.write('2 0\n')
+        f.write('2 1\n')
         f.write(_genString_(topOuterPoly))
         f.write(_genString_(topInnerPoly))        
-#        f.write('1 {} {} {}\n'.format(*probeCentre))
+        f.write('1 {} {} {}\n'.format(*probeCentre))
         
-#        # Bottom of cylinder
-#        f.write('1 0\n')
-#        f.write(_genString_(probeBottom))
+        # Bottom of cylinder
+        f.write('1 0\n')
+        f.write(_genString_(probeBottom))
         
         # Top of cylinder
         f.write('1 0\n')
