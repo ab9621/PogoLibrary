@@ -463,6 +463,8 @@ def writePogoInputFile(fileName,
                         raise ValueError('totalForce not supported for displacement load.')
                     else:
                         ampVal = signals[c1][1]/nNodes
+                        print 'Modiying amplitude'
+                        print ampVal
 
                 else:
                     ampVal = signals[c1][1]
@@ -478,7 +480,14 @@ def writePogoInputFile(fileName,
 
                 amp = np.array([signals[c1][1],], dtype=precString)
             
-            elif type(signals[c1][1]) is np.float64:
+            elif type(signals[c1][1]) is np.float64:                
+                if totalForce == True:
+                    if sigType == 1:
+                        raise ValueError('totalForce not supported for displacement load.')
+                    else:
+                        ampVal = signals[c1][1]/nNodes
+                        print 'Modiying amplitude'
+                        print ampVal
                 amp = np.array(np.ones(nNodes)*signals[c1][1], dtype=precString)
                 
             else:
