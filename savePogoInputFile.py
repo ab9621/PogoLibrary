@@ -301,8 +301,8 @@ def writePogoInputFile(fileName,
             
         if min(materialTypeRefs) != 1:
             raise ValueError('materialTypeRefs must be 1 indexed.')
-            
-        materialTypeRefs = elementTypeRefs.astype('int32') #- 1
+        
+        materialTypeRefs = materialTypeRefs.astype('int32') - 1
         materialTypeRefs.tofile(f)
         
         ##### Element orientations
@@ -410,12 +410,13 @@ def writePogoInputFile(fileName,
         
         else:
             nFixDofA = np.array([nFixDof,], dtype='int32')
-            print nFixDofA
+            nFixDofA.tofile(f)
             
             for c1 in range(0, nSets):
                 dof = (boundaryConditions[c1*2]-1)*4 + boundaryConditions[c1*2+1]-1
                 dof = np.array([dof,], dtype='int32')
                 dof.tofile(f)
+                
         ##### Input signals
         nInputSignals = len(signals)
         nInputSignalsA = np.array([nInputSignals,], dtype='int32')
@@ -462,6 +463,8 @@ def writePogoInputFile(fileName,
                         raise ValueError('totalForce not supported for displacement load.')
                     else:
                         ampVal = signals[c1][1]/nNodes
+                        print 'Modiying amplitude'
+                        print ampVal
 
                 else:
                     ampVal = signals[c1][1]
@@ -477,8 +480,15 @@ def writePogoInputFile(fileName,
 
                 amp = np.array([signals[c1][1],], dtype=precString)
             
-            elif type(signals[c1][1]) is np.float64:
-                amp = np.array([signals[c1][1],], dtype=precString)
+            elif type(signals[c1][1]) is np.float64:                
+                if totalForce == True:
+                    if sigType == 1:
+                        raise ValueError('totalForce not supported for displacement load.')
+                    else:
+                        ampVal = signals[c1][1]/nNodes
+                        print 'Modiying amplitude'
+                        print ampVal
+                amp = np.array(np.ones(nNodes)*signals[c1][1], dtype=precString)
                 
             else:
                 raise ValueError('Signal amplitude not recognised')
@@ -503,7 +513,8 @@ def writePogoInputFile(fileName,
                 hist = np.hstack((hist,r))
                 
             if len(np.unique(hist)) != len(hist):
-                raise ValueError('Duplicate degrees of freedom for the same node(s) found.')
+                print 'Duplicate degrees of freedom for the same node(s) found. Calculating unique ones.'
+                hist = np.unique(hist)
                 
             nMeas = np.array([len(hist),], dtype='int32')
             nMeas.tofile(f)
@@ -511,7 +522,7 @@ def writePogoInputFile(fileName,
             historyMeasurementFrequency = np.array([historyMeasurementFrequency,], dtype='int32')
             historyMeasurementFrequency.tofile(f)
             
-            if version == 1.04:
+            if version >= 1.04:
                 historyMeasurementStart = np.array([historyMeasurementStart-1,], dtype='int32')
                 historyMeasurementStart.tofile(f)
             

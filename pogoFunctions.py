@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Oct 10 10:04:35 2016
+
 @author: Alexander Ballisat
+
 This is a library of functions that have been used for various simulations
 performed using pogo. This idea of this script is to bring them all together
 into one place to reduce duplication and provide a useful library for
 anyone writing pogo input files from Python.
+
 The functions included are:
 loadNodeFile
 loadElementFile
@@ -16,6 +19,8 @@ gaussianAngledBeam
 tukeyWindow
 cartesianCombinations
 gaussianBeamProfile
+
+
 10/10/2016 Version 1.0
 """
 import numpy as np
@@ -93,17 +98,20 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
 def cartesianCombinations(arrays, out=None):
     """
     Generate a cartesian product of input arrays.
+
     Parameters
     ----------
     arrays : list of array-like
         1-D arrays to form the cartesian product of.
     out : ndarray
         Array to place the cartesian product in.
+
     Returns
     -------
     out : ndarray
         2-D array of shape (M, len(arrays)) containing cartesian products
         formed of input arrays.
+
     Examples
     --------
     >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
@@ -119,6 +127,7 @@ def cartesianCombinations(arrays, out=None):
            [3, 4, 7],
            [3, 5, 6],
            [3, 5, 7]])
+
     """
     
     arrays = [np.asarray(x) for x in arrays]
@@ -136,7 +145,7 @@ def cartesianCombinations(arrays, out=None):
             out[j*m:(j+1)*m,1:] = out[0:m,1:]
     return out
 
-def createRectOrientation(phis,origin = None,addRotDim=3,addRotAngle=0):
+def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
     '''
     Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
     
@@ -156,8 +165,6 @@ def createRectOrientation(phis,origin = None,addRotDim=3,addRotAngle=0):
                and (ox,oy,oz) is the transformed origin.
     
     '''
-    if origin == None:
-        origin = np.zeros((len(phis),3))
     orOutList = []
     for ii in range(len(phis)):
         phi = phis[ii]
@@ -170,10 +177,9 @@ def createRectOrientation(phis,origin = None,addRotDim=3,addRotAngle=0):
         
         xPrime = np.matmul(R,xAx)
         yPrime = np.matmul(R,yAx)
-        orOut = np.hstack((0,xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
+        orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
         orOutList.append(orOut)
-    return orOutList   
-
+    return orOutList
     
 def findNodesInTransducer(nodes, 
                           transducerCentre, 
@@ -1170,4 +1176,4 @@ def waveVelocity(E, nu, rho):
     '''
     cp = np.sqrt((E*(1.-nu))/(rho*(1.+nu)*(1-2.*nu)))
     cs = np.sqrt(E/(2.*(1+nu)*rho))
-return cp, cs
+    return cp, cs

@@ -70,6 +70,7 @@ class pogoHistData:
          self.startMeasure = startMeasure
          self.precision = precision
          self.timeBase = np.linspace(0, self.nt-1, self.nt) * self.dt
+         self.nNodes = len(np.unique(nodeNums))
          
          return
 
@@ -97,7 +98,6 @@ def loadPogoHistory(fileName):
         header = struct.unpack('20s', f.read(20))
         header = header[0].replace('\x00','')
         print header
-        #return header
         
         if header == '%pogo-hist1.0':
             fileVer = 1.0
