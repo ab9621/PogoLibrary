@@ -1,5 +1,4 @@
 import numpy as np
-
 def ThreePointToCenterAndAngles(p1,p2,p3):
     def _getDiffs():
         dy1 = float(p2[1]-p1[1])
@@ -24,14 +23,22 @@ def ThreePointToCenterAndAngles(p1,p2,p3):
     numerator = grad1*grad2*(p1[1]-p3[1])+grad2*(p1[0]+p2[0])-grad1*(p2[0]+p3[0])
     x = numerator / denom
     y = -1/grad1*(x-(p1[0]+p2[0])/2)+(p1[1]+p2[1])/2
-    
+    radius = np.sqrt((p1[0]-x)*(p1[0]-x)+(p1[1]-y)*(p1[1]-y))
     
     th1,th2,th3 = getAnglesRelativeToCenter(p1,[x,y]),getAnglesRelativeToCenter(p2,[x,y]),getAnglesRelativeToCenter(p3,[x,y])
-    startTheta = min([th1,th2,th3])
-    endTheta = max([th1,th2,th3])
-    
-    radius = np.sqrt((p1[0]-x)*(p1[0]-x)+(p1[1]-y)*(p1[1]-y))
-    return x,y,startTheta,endTheta,radius
+    angles = np.array([th1,th2,th3])
+    startTheta = min(angles)
+    endTheta = max(angles)
+    angles[angles<0]=2*np.pi+angles[angles<0]
+    startTheta2 = min(angles)
+    endTheta2 = max(angles)
+    angleRange1 = endTheta-startTheta
+    angleRange2 = endTheta2-startTheta2
+    if angleRange2>angleRange1:
+        return x,y,startTheta,endTheta,radius
+    else:
+        return x,y,startTheta2,endTheta2,radius
+        
 
 def SCEToCentreAndAngles(p1,p2,p3):
     startTheta,endTheta = getAnglesRelativeToCentre(p1,p2),getAnglesRelativeToCentre(p3,p2)

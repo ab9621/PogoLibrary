@@ -347,7 +347,7 @@ class HistoryMeasurement:
         self.nMeas.tofile(fileId)
         self.frequency.tofile(fileId)
         pdb.set_trace()
-        outHist = self.nodes*4 + self.dofs - 1
+        outHist = (self.nodes*4 + self.dofs).astype('int32')# - 1
         outHist.tofile(fileId)
 class FieldMeasurement:
     def __init__(self,increments=0):

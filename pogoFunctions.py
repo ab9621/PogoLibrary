@@ -726,8 +726,7 @@ def minEdgeLength(nodes, elements):
         
     
     
-
-def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotAngle=0):
+def createRectOrientation(phis,origin = None,addRotDim=3,addRotAngle=0):
     '''
     Function to create list of orientations based on angles relative to the x-axis. Currently 2D only
     
@@ -747,6 +746,8 @@ def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotA
                and (ox,oy,oz) is the transformed origin.
     
     '''
+    if origin == None:
+        origin = np.zeros((len(phis),3))
     orOutList = []
     for ii in range(len(phis)):
         phi = phis[ii]
@@ -759,6 +760,6 @@ def createRectOrientation(phis,origin = np.array([[0,0,0],]),addRotDim=3,addRotA
         
         xPrime = np.matmul(R,xAx)
         yPrime = np.matmul(R,yAx)
-        orOut = np.hstack((xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
+        orOut = np.hstack((0,xPrime, yPrime, origin[ii], addRotDim, addRotAngle))
         orOutList.append(orOut)
     return orOutList   

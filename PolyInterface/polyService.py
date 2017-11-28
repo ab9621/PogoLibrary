@@ -32,13 +32,14 @@ from itertools import compress
 from shapely.ops import polygonize   
 from shapely.geometry import LineString,Polygon
 from CustomLineString import CustomLineString
-def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
+from connectionConstants import *
+
+def polylinesToPSLG(pLines,indexOfBoundary):
     jj=1
     numberOfVertices = sum(len(vertexList.vertices()) for vertexList in pLines)
     vertices = np.zeros([0,2])
     boundaryFlags = np.zeros([0,1],dtype='int32')
     edges = []
-    pdb.set_trace()
     
     for ii in range(len(pLines)):   
         vertices = np.vstack((vertices,pLines[ii].vertices()))
@@ -46,19 +47,16 @@ def polylinesToPSLG(pLines,isClosed,indexOfBoundary):
             boundaryFlags = np.vstack((boundaryFlags,np.ones([len(pLines[ii].vertices()),1])))
         else:
             boundaryFlags = np.vstack((boundaryFlags,np.zeros([len(pLines[ii].vertices()),1])))
-    pdb.set_trace()
     jj = 1
     for ii in range(len(pLines)):
         jStart = jj
         for kk in range(len(pLines[ii].vertices())-1):
             edges.append([jj,jj+1])
             jj+=1
-        if isClosed[ii]:
+        if pLines[ii].expl_closed:
             edges.append([jj,jStart])
         jj+=1
     edges = np.array(edges)
-
-    pdb.set_trace() 
     return vertices,boundaryFlags,edges
 
 def writePoly2d(polyInstance,filePath):
@@ -127,7 +125,6 @@ def findOuterBoundaryIndex(pLines):
     ii : integer
         The index corresponding to the enclosing boundary in the PSLG
     '''
-    pdb.set_trace()
     if len(pLines) == 1:
         return 0
     for ii in range(len(pLines)):
@@ -328,41 +325,40 @@ def _doJoin(line,otherLine,connectionId):
 	Parameters
     ----------
         line:
-            Matplotlib.path containing vertices of one line
+            CustomLineString containing vertices of one line
         otherLine:
-            Matplotlib.path containing vertices of an intersecting line
+            CustomLineString containing vertices of an intersecting line
         connectionId:
-            Integer describing how the lines are joined (see _getConnectionId for details)
+            Constant describing how the lines are joined (see _getConnectionId and connectionConstants.py for details)
     Returns
         line:
-            Matplotlib.path containing the joined line
-        isClosed:
-            Boolean - True if line is closed, otherwise false.
+            CustomLineString containing the joined line
+        
     -------
     
     '''
-    if connectionId == 3:
+    if connectionId == BEGIN_TO_BEGIN:
         vertices = np.vstack((otherLine.vertices()[-1:0:-1,:],line.vertices()))
         isClosed = False
-    elif connectionId == 4:
+    elif connectionId == END_TO_END:
         vertices = np.vstack((line.vertices(),otherLine.vertices()[-2::-1,:]))
         isClosed = False
-    elif connectionId == 5:
+    elif connectionId == BEGIN_TO_END:
         vertices = np.vstack((otherLine.vertices()[:-1,:],line.vertices()))
         isClosed = False
-    elif connectionId == 6:
+    elif connectionId == END_TO_BEGIN:
         vertices = np.vstack((line.vertices(),otherLine.vertices()[1:,:]))
         isClosed = False
-    elif connectionId == 7:
+    elif connectionId == CONTRA_RING_JOIN:
         vertices = np.vstack((otherLine.vertices()[-2:1:-1,:],line.vertices()))
         isClosed = True
-    elif connectionId == 8:
+    elif connectionId == CO_RING_JOIN:
         vertices = np.vstack((line.vertices(),otherLine.vertices()[1:-1,:]))
         isClosed = True
     outLine = CustomLineString(vertices,isClosed)
-    return outLine,isClosed
+    return outLine
     
-def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
+def joinPlines(lines,otherLines,level = 0):
     '''
 	Recursive function to search through a list of polylines (in the form of mpl.Paths) and
 	join them together into one path if they are attached at the ends.
@@ -370,13 +366,9 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
 	Parameters
     ----------
     lines : 
-        List of Matplotlib.path parent lines (first iteration this will just be the set of all lines in the model)
+        List of CustomLineString
     otherLines : 
-        List of Matplotlib.path "ghost" lines, containing all lines in the model.
-    isClosedList : 
-        Boolean list describing whether a line is closed. This is updated based on the new lines formed by joining
-    ignoreList : 
-        Only relevant for levels > 0. Informs which lines have been attached to other lines, to stop confusion.
+        List of CustomLineString
     level:
         Which level of the recursion is the code currently at. Useful for debugging and initialisation.
     
@@ -384,10 +376,7 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
     -------
     newLines : 
         List of Matplotlib.path lines. Each line no longer is connected at end points to any other line.
-    newClosedList: 
-        Boolean list describing whether the new lines are closed.
-    ignoreList:
-        List of indices. Only relevant in recursion. Informs which lines have been investigated in the current iteration.
+    
     
     Notes
     -----
@@ -395,46 +384,32 @@ def joinPlines(lines,otherLines,isClosedList,ignoreList = [],level = 0):
     or lines cross in any way). 
     '''
     
-    if level == 0:
-        ignoreList = []
     newLines = []
-    newClosedList = []
-    internalIgnoreList = []
-    for ii in range(len(lines)):
-        if ii in internalIgnoreList:
+    while lines:
+        nL = [lines.pop(0),]
+        if nL[0].is_closed or nL[0].expl_closed:
+            newLines.extend(nL)
             continue
-        line = lines[ii]
-        newClosedList.append(line.is_closed)
-        newLines.append(line)
-        for jj in range(len(otherLines)):
-            if jj in ignoreList:
-                continue
+        jj=0
+        while otherLines and jj < len(otherLines):
             otherLine = otherLines[jj]
-            connectionId = _getConnectionId(line,otherLine)
-            print('level {}'.format(level))
-            print('CID {}'.format(connectionId))
-            if connectionId > 2 and connectionId < 9:
-                
-                joinedPline,isClosed = _doJoin(line,otherLine,connectionId)
-                
-                ignoreList.append(jj)
-                ignoreList.append(ii)
-                internalIgnoreList.append(jj)
-                internalIgnoreList.append(ii)
-                joinedPlineList,isClosed,ignoreList = joinPlines([joinedPline,],otherLines,isClosedList,ignoreList = ignoreList,level = level+1)
-                if joinedPlineList:
-                    newLines.pop(-1)
-                    newClosedList.pop(-1)
-                    
-                newLines.extend(joinedPlineList)
-                newClosedList.extend(isClosed)
+            if nL[0].is_same_line(otherLine):
+                otherLines.pop(jj)
+                continue
+            elif not nL[0].intersects(otherLine):
+                jj+=1
+                continue
+            else:
+                connectId = _getConnectionId(nL[0],otherLine)
+                if connectId == -1:
+                    continue
+                nL = [_doJoin(nL[0],otherLine,connectId),]
+                otherLines.pop(jj)
+                nL = joinPlines(nL,otherLines,level = level+1)
                 break
-            elif connectionId == 9:
-                newLines.pop(-1)
-                newClosedList.pop(-1)
-                break
-    print('Number of Lines {}'.format(len(newLines)))
-    return newLines,newClosedList,ignoreList
+        newLines.extend(nL)
+                
+    return newLines
 
 def _getConnectionId(line1, line2):
     '''
@@ -442,72 +417,52 @@ def _getConnectionId(line1, line2):
 	
 	Parameters
     ----------
-    line1EndPoints : 
-        Matplotlib.path object containing vertices of the first line
-    line2EndPoints : 
-        Matplotlib.path object containing vertices of the second line
-    sameLine :
-        Boolean showing whether
+    line1 : 
+        CustomLineString object containing vertices of the first line
+    line2 : 
+        CustomLineString object containing vertices of the second line
     Returns
     -------
-    connectId : int
-        Integer representing the type of connection between the two lines.
-                -1: Unassigned (should never return this)
-                0 : No connection
-                1 : Line1 and Line2 are the same polyline
-                2 : Line1 and Line2 are the same polyline with vertices in reverse order
-                3 : The first vertex of Line1 is coincident with the first vertex of Line2
-                4 : The last vertex of Line1 is coincident with the last vertex of Line2
-                5 : The first vertex of Line1 is coincident with the last vertex of Line2
-                6 : The last vertex of Line1 is coincident with the first vertex of Line2
-                7 : Both endpoints match in same order (first to first, last to last)
-                8 : Both endpoints match in reverse order (first to last, last to first)
-                9 : Line2 is already part of Line1
+    connectId : Constant Int 
+        Value representing the type of connection (see connectionConstants.py for values)
+                -1: Connection type is not handled, e.g. connected not at endpoints
+                BEGIN_TO_BEGIN : The first vertex of Line1 is coincident with the first vertex of Line2
+                END_TO_END : The last vertex of Line1 is coincident with the last vertex of Line2
+                BEGIN_TO_END : The first vertex of Line1 is coincident with the last vertex of Line2
+                END_TO_BEGIN : The last vertex of Line1 is coincident with the first vertex of Line2
+                CONTRA_RING_JOIN : Both endpoints match in same order (first to first, last to last)
+                CO_RING_JOIN : Both endpoints match in reverse order (first to last, last to first)
     '''
     
     line1EndPoints = np.array([[line1.vertices()[0,:]],[line1.vertices()[-1,:]]])
     line2EndPoints = np.array([[line2.vertices()[0,:]],[line2.vertices()[-1,:]]])
-    sameLine = np.all(line1.vertices()==line2.vertices()) or np.all(line1.vertices() == line2.vertices()[:,-1:None:-1])
+    
     firstMatch = np.all(line1EndPoints[0] == line2EndPoints[0])
     lastMatch = np.all(line1EndPoints[1] == line2EndPoints[1])
     beginToEndMatch = np.all(line1EndPoints[0] == line2EndPoints[1])
     endToBeginMatch = np.all(line1EndPoints[1] == line2EndPoints[0])
     connectId = -1
     
-    if not firstMatch and not lastMatch and not beginToEndMatch and not endToBeginMatch:
-        connectId =  0
-        
-    elif line1.contains(line2) and not sameLine:
-        connectId = 9
-    elif line2.contains(line1) and not sameLine:
-        connectId = 10
-    elif firstMatch and lastMatch:
-        if sameLine:
-            connectId = 1
-        else:
-            connectId = 7
+    if firstMatch and lastMatch:
+        connectId = CONTRA_RING_JOIN
     elif beginToEndMatch and endToBeginMatch:
-        if sameLine:
-            connectId =  2
-        else:
-            connectId = 8
+        connectId = CO_RING_JOIN
     elif firstMatch:
-        connectId =  3
+        connectId =  BEGIN_TO_BEGIN
     elif lastMatch:
-        connectId =  4
+        connectId =  END_TO_END
     elif beginToEndMatch:
-        connectId =  5
+        connectId =  BEGIN_TO_END
     elif endToBeginMatch:
-        connectId =  6
-        
+        connectId =  END_TO_BEGIN
     return connectId
         
-def findFaces(pLines,isClosed):
+def findFaces(pLines):
     polygons = []
     lines = []
     for ii in range(len(pLines)):
         pLine = pLines[ii]
-        if isClosed[ii]:
+        if pLine.expl_closed:
             polygons.append(Polygon(pLine.vertices()))
         else:
             lines.append(CustomLineString(pLine.vertices()))

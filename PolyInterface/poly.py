@@ -12,6 +12,7 @@ import matplotlib.path as mplPath
 import arcConversions as aC
 from CustomLineString import CustomLineString
 from collections import Iterable
+DEBUG = False
 class Poly:
     vertices = np.empty([0,2])
     vertexIDs = np.empty([0,1])
@@ -62,25 +63,17 @@ class Poly:
                 return
             entities = dxfFile.entities
             pLines,isClosed = pS.findPlines(entities,self.elementSize,precision=5)
-            pdb.set_trace()
-            pLines,isClosed,_ = pS.joinPlines(pLines,pLines,isClosed,ignoreList = [])
-            pdb.set_trace()
-            holes = pS.findHoles(entities)
-            indexOfBoundary=pS.findOuterBoundaryIndex(pLines)
-            [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(pLines,isClosed,indexOfBoundary)
-            [faces,sLines] = pS.findFaces(pLines,isClosed)
-            regions = pS.splitFaces(faces,sLines)
+            self.polyLines = pLines
+            self.generatePSLG()
         elif filePath[-5:]=='.poly':
             try:
                 vertices,edges,holes=pS.readPoly(filePath)
+                self.addVertices(vertices,boundaryFlags)
+                self.addEdges(edges)
+                self.addHoles(holes)
             except IOError:
                 print('No such poly file. Maybe you meant .dxf? Creating empty graph.')
                 return
-        
-        self.addVertices(vertices,boundaryFlags)
-        self.addEdges(edges)
-        self.addHoles(holes)
-        self.addRegions(regions)
         if writeFile:
             pS.writePoly2d(self,filePath)
             
@@ -144,7 +137,7 @@ class Poly:
         for ii in range(len(regions)):
             region = regions[ii]
             
-            self.regions.append(mplPath.Path(np.array(region.exterior.coords)))
+            self.regions.append(CustomLineString(np.array(region.exterior.coords)))
         self._setNumberOfRegions()    
     
     def emptyPoly(self):
@@ -156,16 +149,23 @@ class Poly:
         self.numberOfHoles = 0
         self.numberOfBoundaryVertices = 0
         
+    def generatePSLG(self):
+        holes = self.holes
+        polyLines = self.polyLines
+        self.emptyPoly()
+        polyLines = pS.joinPlines(polyLines,polyLines)
+        self.polyLines = polyLines
+        indexOfBoundary=pS.findOuterBoundaryIndex(polyLines)
+        [vertices,boundaryFlags,edges]=pS.polylinesToPSLG(polyLines,indexOfBoundary)
+        [faces,sLines] = pS.findFaces(polyLines)
+        regions = pS.splitFaces(faces,sLines)
+        self.addVertices(vertices,boundaryFlags)
+        self.addEdges(edges)
+        self.addHoles(holes)
+        self.addRegions(regions)    
     def addArc(self,arcPoint1,arcPoint2,arcPoint3,arcType = '3pt',boundary = False):
         #http://paulbourke.net/geometry/circlesphere/
-        # 
-        #     _do3PtArc()
-        #if type.lower() == 'sce':
-        #     _doSCEArc()
-        # elif type.lower() == 'sca'
-        #     _doSCAArc()
-        # elif type.lower() == 'scl'
-        #     _doSCLArc()
+        
         if arcType.lower() == '3pt':
             x,y,startTheta,endTheta,radius = aC.ThreePointToCenterAndAngles(arcPoint1,arcPoint2,arcPoint3)
         elif arcType.lower() == 'sce':
@@ -174,15 +174,8 @@ class Poly:
             x,y,startTheta,endTheta,radius = aC.SCAToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
         elif arcType.lower() == 'scl':
             x,y,startTheta,endTheta,radius = aC.SCLToCentreAndAngles(arcPoint1,arcPoint2,arcPoint3)
-        
-        polyline = pS.createArcPolyline(startTheta,endTheta,radius,[x,y],self.elementSize)
-        existingLineString = CustomLineString(self.vertices)
-        
-        pointsNotInExisting = np.logical_not(existingLineString.contains(polyline))
-        if np.any(pointsNotInExisting):
-            errMsg = 'Additional geometry must be fully contained within existing geometry.'
-            raise ValueError(errMsg)
-        [vertices,boundaryFlags,edges] = pS.polylinesToPSLG([polyline,],[False,],-1)
-        self.addVertices(vertices,boundaryFlags)
-        self.addEdges(edges)
- 
+            
+        polyLine = pS.createArcPolyline(startTheta,endTheta,radius,[x,y],self.elementSize)
+        polyLine = CustomLineString(pS.setPrecision(polyLine.vertices(),self.elementSize,precision=5))
+        self.polyLines.append(polyLine)
+        self.generatePSLG()
