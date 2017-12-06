@@ -90,9 +90,9 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
     im = ax.imshow(fullData[:,:,1], origin='lower', extent=extent_,
                    aspect='auto', interpolation='None')
     
-    #ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
-    #                            interval=200, blit=True)
-    return 1.0
+    ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
+                                interval=200, blit=True)
+    return ani
     
 
 def cartesianCombinations(arrays, out=None):

@@ -10,6 +10,8 @@ import numpy as np
 import pogoFunctions as pf
 import matplotlib.pyplot as plt
 
+
+    
 def _facetLine_(string):
     '''
     NEEDS COMMENTING
@@ -197,7 +199,299 @@ def circleGen(centre,r,dTheta=None,nPoints=None):
     facets[3] = np.copy(c1) + nPoints
     
     return points, facets
+def crackXYAngle(crackLength,
+                 crackHeight,
+                 crackAngle,
+                 path,
+                 fileName='test'):
+    '''
+    Function to write the poly file for a plate with a hole and a crack in.
+    Currently uses a fixed hole centre and radius.
+    
+    FUTURE WORK WILL GENERALISE THIS FURTHER
+    
+    Parameters
+    ----------
+    crackLength : float
+        The length of the crack in metres.
+    
+    crackHeight : float
+        The height of the crack in metres.
+        
+    crackAngle : float
+        The rotation counterclockwise around the z axis of the crack. Must be
+        supplied in degrees.
+    
+    path : string
+        The folder in which the .poly file will be saved.
+        
+    fileName : string, optional
+        The name of poly file, without the '.poly' on the end. The default is
+        'test'.
+        
+    Returns
+    -------
+    None
+    '''
+    
+    crackAngle = crackAngle*np.pi/180.
+    
+    # z is the thickness
+    z0 = 0.0
+    z1 = 6.5E-3
+    
+    # x-y plane
+    x0 = 0.0
+    x1 = 43E-3
+    y0 = 0.0
+    y1 = 40E-3 #going to want this to be one sided with room for a crack on one size
+    
+    corners = [[x0,y0],
+               [x0,y1],
+               [x1,y1],
+               [x1,y0]]
+               
+    nCorners = len(corners)*2
+           
+    facets = [[1,2,3,4],
+              [5,6,7,8],
+              [1,5,8,4],
+              [2,6,7,3],
+              [1,2,6,5],
+              [4,3,7,8]]
+    
+    
+    # Crack parameters
+    crackWidth = 0.1E-3
+    nCrackPoints = 3
+    
+    # Hole parameters         
+    holeRadius = 3E-3
+    holeCentre = [30E-3, 20E-3]
+    holePoints = 180 #360 gives 1 per degree of angle
+    circlePoints, circleFacets = GF.circleGen(holeCentre, 
+                                              holeRadius, 
+                                              nPoints=holePoints)
+                                                  
+    circleFacets = circleFacets.T
 
+    # Crack origin
+    if crackAngle == 0.0:
+        crackOrigin = np.array([holeCentre[0], 
+                                holeCentre[1]+holeRadius+crackLength])
+                                
+    else:
+        xPrime = crackLength * np.sin(crackAngle)
+        yPrime = crackLength * np.cos(crackAngle)
+        
+        crackOrigin = np.array([holeCentre[0]+xPrime, 
+                                holeCentre[1]+holeRadius+yPrime])
+                                
+    crackHoleIntersection = np.array([holeCentre[0],
+                                  holeCentre[1]+holeRadius,
+                                  crackHeight])
+    
+    # Crack vectors
+    v = [holeCentre[0] - crackOrigin[0],
+         holeCentre[1]+holeRadius - crackOrigin[1]]
+         
+    leftVector = np.array([v[0] + crackWidth/2, v[1]])
+    leftVector *= 1./np.sqrt(np.sum(np.power(leftVector, 2))) #normalisation
+    rightVector = np.array([v[0] - crackWidth/2, v[1]])
+    rightVector *= 1./np.sqrt(np.sum(np.power(rightVector, 2)))
+    
+    # Calculate circle intersection points
+    leftIntersection = GF.sphereRayInstersetion(holeCentre, holeRadius, crackOrigin, leftVector)
+    rightIntersection = GF.sphereRayInstersetion(holeCentre, holeRadius, crackOrigin, rightVector)
+    # Calculate which points are on the circle but not in the crack
+    onBoundary, nRemoved = GF.pointsNotInCrack2D(leftIntersection,
+                                                 rightIntersection,
+                                                 circlePoints)
+    onBoundary = onBoundary.astype(int)
+    #print onBoundary
+    
+    nCircleBoundary = len(onBoundary)
+    nBoundary = nCircleBoundary + 3 #3 is the number of points on the crack
+    
+    # Derived model properties
+    nNodes = nCorners + (holePoints-nRemoved)*2 + nCrackPoints + 1 + 1 #+2
+    '''
+    The +1 is for the crackHoleIntersection, +2 for projection of crack 
+    intersection points to top, +1 for central crack hole intersection
+    projection on to the top
+    '''
+    # Work out which facets are not on the crack
+    removedPoints = [pos+1 for pos, val in enumerate(circlePoints[0]) if pos not in onBoundary]
+    removedPoints = np.sort(removedPoints)
+    removedPoints = np.hstack((removedPoints, removedPoints+len(circlePoints[0])))
+
+    
+    circleFacets = np.array([a for a in circleFacets if (np.in1d(a, removedPoints)).any() == False]).astype(int)
+    for a in removedPoints[::-1]:
+        circleFacets[circleFacets > a] -= 1
+    circleFacets [:,:] += nCorners + nCrackPoints + 1 + 1
+
+    vec = rightIntersection - circlePoints[:,onBoundary[0]]
+    vec *= 1./np.sqrt(np.sum(np.power(vec, 2)))
+    vec2 = leftIntersection - circlePoints[:,onBoundary[-1]]
+    vec2 *= 1./np.sqrt(np.sum(np.power(vec2, 2)))
+    t = (leftIntersection[0] - rightIntersection[0])/(vec[0]-vec2[0])
+    #print t
+    crackHoleIntersection[1] = leftIntersection[1] + vec[1]*t
+    #print crackHoleIntersection[1]
+    
+    nDims = 3 #its 3D
+    
+    with open(r'{}\{}.poly'.format(path, fileName), 'w') as out:
+        # Write the file header
+        out.write('# Tetgen input file for Test\n#\n# TestGeometry.poly\n#\n')
+    
+        # Write the nodes header
+        out.write('\n# <Number of nodes> <Number of dimensions>\n')
+        out.write('{} {} 0 0\n'.format(nNodes, nDims))
+        count = 1
+        
+        # Write out the corner nodes
+        for a in [z0, z1]:
+            for b in corners:
+                x, y = b
+                out.write('{} {} {} {}\n'.format(count, x, y, a))
+                count += 1
+                
+        crackStart = count
+                
+        # Write out the crack points
+        for a in [z0,]:
+            for b in (leftIntersection, crackOrigin, rightIntersection):
+                x, y = b
+                out.write('{} {} {} {}\n'.format(count, x, y, a))
+                count += 1
+                
+        crackHoleIntersectionNumber = count
+        x,y,z = crackHoleIntersection
+        out.write('{} {} {} {}\n'.format(count, x, y, z))
+        count += 1
+        
+        crackIntersectionTopProjectionNumber = count
+        for a in [z1,]:
+            for b in [crackHoleIntersection[:2],]:#(leftIntersection, rightIntersection, crackHoleIntersection[:2]):
+                x, y = b
+                out.write('{} {} {} {}\n'.format(count, x, y, a))
+                count += 1
+        
+        holeStart = count
+        
+        boundaryInds = np.zeros((2, nCircleBoundary))
+        onBoundaryInds = np.copy(onBoundary).astype(int)
+        #print onBoundaryInds
+        for a in removedPoints[::-1]:
+            onBoundaryInds[onBoundaryInds>a-1] -= 1
+        
+        onBoundary = np.sort(onBoundary)
+    
+        # Write out the hole
+        for pos, a in enumerate([z0,z1]):
+            dummyCount = 0
+            for c1 in onBoundary:
+                x, y = circlePoints[:,c1]
+                out.write('{} {} {} {}\n'.format(count, x, y, a))
+                boundaryInds[pos, dummyCount] = count
+                dummyCount += 1
+                count += 1
+        
+        # Write out the facets header
+        out.write('\n# <Number of facets> <Boundary markers 0 or 1>\n')
+        nFacets = len(facets) + holePoints - (nRemoved+1) + 2 + 2
+        #print nFacets
+        out.write('{} 0\n'.format(nFacets))#len(facets) + holePoints - (nRemoved+1) + 2 + 2))#+ 2 )) #NEED TO MAKE SURE THIS IS RIGHT
+        # +2: join of crack base to hole, +2: faces of the crack, +2: trapezoidal faces at join of crack and hole
+        
+        # Write out the top and bottom faces
+        #Bottom face
+        out.write('2 1\n')
+        out.write('4 {} {} {} {}\n'.format(*facets[0]))
+        
+        # Work out the complete crack polygon
+        #Do the crack points
+        boundaryPoints = np.array([crackStart + i for i in range(nCrackPoints)])
+        boundaryPoints = np.hstack((boundaryPoints, boundaryInds[0,onBoundaryInds]))
+        boundaryPoints = boundaryPoints.astype(int)
+        
+        string = ' '.join(itertools.repeat('{}', nBoundary))
+        string = ' '.join(['{}'.format(nBoundary), string, '\n'])
+        string = string.format(*tuple(boundaryPoints))
+    
+        if len(string) > 1024:
+            string = GF.splitString(string, 1024, '    ')
+        out.write(string)    
+        out.write('1 {} {} {}\n'.format(*(holeCentre+[z0,])))
+        
+        #Top face - need to include the extra points from the crack
+        out.write('2 1\n')
+        out.write('4 {} {} {} {}\n'.format(*facets[1]))
+        
+        string = ' '.join(itertools.repeat('{}', len(onBoundary)))
+        string = ' '.join(['{}'.format(len(onBoundary)+1), string])
+        string = string.format(*tuple(boundaryInds[1, onBoundaryInds].astype(int)))
+        
+        extras = [crackIntersectionTopProjectionNumber + i for i in [0]]#,2,1] ]
+    
+        string2 = ' '.join(itertools.repeat('{}', len(extras)))
+        string2 = string2.format(*extras)
+        string2 = '{}'.format(crackIntersectionTopProjectionNumber)
+        string2 = ''.join((string2, '\n'))
+        string = ' '.join((string, string2))
+        
+        if len(string) > 1024:
+            string = GF.splitString(string, 1024, '    ')
+
+        out.write(string)    
+        out.write('1 {} {} {}\n'.format(*(holeCentre+[z1,]) ) )
+        
+        # Write out the sides of the box
+        for a in facets[2:]:
+            l = [len(a),] + a
+            out.write('1 0\n{} {} {} {} {}\n'.format(*l))
+            
+        # Write out the facets of the inside of the cylindrical hole which do not
+        # overlap with the hole
+        for c1 in range(0, len(circleFacets)):
+            out.write ('1 0\n4 {} {} {} {}\n'.format(*circleFacets[c1]))
+            
+        # Write out the faces that join the crack intersection points to the hole
+        #right
+        out.write('1 0\n5 {} {} {} {} {}\n'.format(crackStart+2, 
+                                      crackHoleIntersectionNumber,
+                                      crackIntersectionTopProjectionNumber,
+                                      boundaryInds[1,onBoundaryInds[0]],
+                                      boundaryInds[0,onBoundaryInds[0]]))
+        #left
+        out.write('1 0\n5 {} {} {} {} {}\n'.format(crackStart, 
+                                      crackHoleIntersectionNumber,
+                                      crackIntersectionTopProjectionNumber,
+                                      boundaryInds[1,onBoundaryInds[-1]],
+                                      boundaryInds[0,onBoundaryInds[-1]]))
+    
+        # Write out the two faces of the crack
+        out.write('1 0\n3 {} {} {}\n'.format(crackStart, crackStart+1, crackHoleIntersectionNumber))
+        out.write('1 0\n3 {} {} {}\n'.format(crackStart+2, crackStart+1, crackHoleIntersectionNumber))
+        
+        # Write out the hole header
+        out.write('\n# <Number of holes>\n')
+        
+        # Write out the holes
+        out.write('1\n')
+        out.write('1 {} {} {}\n'.format(*(holeCentre+[(z1-z0)/2.,])))
+        #out.write('2 {} {} {}\n'.format(*[holeCentre[0], holeCentre[1]+holeRadius+crackLength/2., 1E-5]))
+        
+        # Write out the region attributes header
+        out.write('\n# <Number of regions>\n')
+        
+        # Write out the regions
+        out.write('0\n')
+        
+    return
+    
 def cylinderGeneration(r, z, theta=None, dTheta=None, nPoints=None,
                        origin=[0.,0.,0.], theta0=0.0):
     '''
