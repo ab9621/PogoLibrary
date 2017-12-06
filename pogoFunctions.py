@@ -87,12 +87,12 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    im = ax.imshow(fullData[:,:,0], origin='lower', extent=extent_,
+    im = ax.imshow(fullData[:,:,1], origin='lower', extent=extent_,
                    aspect='auto', interpolation='None')
     
-    ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
-                                interval=200, blit=True)
-    return ani
+    #ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
+    #                            interval=200, blit=True)
+    return 1.0
     
 
 def cartesianCombinations(arrays, out=None):
@@ -977,10 +977,12 @@ def plotFieldData(fieldData, increment, component='magnitude',
         xs, ys = np.meshgrid(xBase, yBase)
         
         finalData = interp(xs, ys)
+        finalData *= 1./np.max(finalData)
         
         print 'Plotting'
         extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
         ax.imshow(finalData, origin='lower', extent=extent_, aspect='auto')
+        #fig.colorbar(ax)
         
     elif fieldData.nDims == 3:
         print 'Not implemented yet...'
@@ -989,7 +991,7 @@ def plotFieldData(fieldData, increment, component='magnitude',
         return fig
         
     else:
-        return
+        return finalData, extent_
         
 def rotate2D(position, angle, centreOfRotation):
     '''

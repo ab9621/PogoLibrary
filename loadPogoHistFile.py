@@ -60,7 +60,8 @@ class pogoHistData:
                  nt,
                  dt,
                  startMeasure,
-                 precision):
+                 precision,
+                 nodeDof):
                      
          self.nodeNums = nodeNums
          self.nodePos = nodePos
@@ -71,6 +72,7 @@ class pogoHistData:
          self.precision = precision
          self.timeBase = np.linspace(0, self.nt-1, self.nt) * self.dt
          self.nNodes = len(np.unique(nodeNums))
+         self.nodeDofs = nodeDof
          
          return
 
@@ -143,7 +145,7 @@ def loadPogoHistory(fileName):
             nodePos[:, c1] = struct.unpack('{}{}'.format(nDims, precString), f.read(precision*nDims))
             histTraces[c1, :] = np.array(struct.unpack('{}{}'.format(ntMeasured, precString), f.read(precision*ntMeasured)), dtype=precString)
     
-    histInstance = pogoHistData(nodeNums, nodePos, histTraces, ntMeasured, dtMeasured, startMeasure, precision)
+    histInstance = pogoHistData(nodeNums, nodePos, histTraces, ntMeasured, dtMeasured, startMeasure, precision, nodeDofs)
     
     return histInstance
     
