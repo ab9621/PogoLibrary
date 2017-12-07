@@ -9,7 +9,7 @@ creating most models.
 import numpy as np
 import pogoFunctions as pf
 import matplotlib.pyplot as plt
-
+import itertools
 
     
 def _facetLine_(string):
@@ -269,7 +269,7 @@ def crackXYAngle(crackLength,
     holeRadius = 3E-3
     holeCentre = [30E-3, 20E-3]
     holePoints = 180 #360 gives 1 per degree of angle
-    circlePoints, circleFacets = GF.circleGen(holeCentre, 
+    circlePoints, circleFacets = circleGen(holeCentre, 
                                               holeRadius, 
                                               nPoints=holePoints)
                                                   
@@ -301,10 +301,10 @@ def crackXYAngle(crackLength,
     rightVector *= 1./np.sqrt(np.sum(np.power(rightVector, 2)))
     
     # Calculate circle intersection points
-    leftIntersection = GF.sphereRayInstersetion(holeCentre, holeRadius, crackOrigin, leftVector)
-    rightIntersection = GF.sphereRayInstersetion(holeCentre, holeRadius, crackOrigin, rightVector)
+    leftIntersection = raySphereInstersetion(holeCentre, holeRadius, crackOrigin, leftVector)
+    rightIntersection = raySphereInstersetion(holeCentre, holeRadius, crackOrigin, rightVector)
     # Calculate which points are on the circle but not in the crack
-    onBoundary, nRemoved = GF.pointsNotInCrack2D(leftIntersection,
+    onBoundary, nRemoved = pointsNotInCrack2D(leftIntersection,
                                                  rightIntersection,
                                                  circlePoints)
     onBoundary = onBoundary.astype(int)
@@ -422,7 +422,7 @@ def crackXYAngle(crackLength,
         string = string.format(*tuple(boundaryPoints))
     
         if len(string) > 1024:
-            string = GF.splitString(string, 1024, '    ')
+            string = splitString(string, 1024, '    ')
         out.write(string)    
         out.write('1 {} {} {}\n'.format(*(holeCentre+[z0,])))
         
@@ -443,7 +443,7 @@ def crackXYAngle(crackLength,
         string = ' '.join((string, string2))
         
         if len(string) > 1024:
-            string = GF.splitString(string, 1024, '    ')
+            string = splitString(string, 1024, '    ')
 
         out.write(string)    
         out.write('1 {} {} {}\n'.format(*(holeCentre+[z1,]) ) )

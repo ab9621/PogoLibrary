@@ -93,7 +93,8 @@ def animate2DFieldData(fieldData, component='magnitude', returnFig=False):
     ani = animate.FuncAnimation(fig, __animate__, frames=fieldData.nFieldInc,
                                 interval=200, blit=True)
     return ani
-    
+
+
 
 def cartesianCombinations(arrays, out=None):
     """
@@ -916,6 +917,56 @@ def plot2Dmesh(nodes, elements, returnFig=False):
     else:
         return
 
+def plotBeamProfile(fieldData, component='magnitude', returnFig=False):
+    '''
+    '''
+    if component not in ['ux', 'uy', 'uz', 'magnitude']:
+        raise ValueError('Invalid displacement component.')
+        
+        
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    print 'Finding maximums in data'
+    if component == 'magnitude':
+        data = np.sqrt(np.max(fieldData.ux**2 + fieldData.uy**2 + fieldData.uz**2, axis=1))
+        
+    elif component == 'ux':
+        data = np.max(fieldData.ux, axis=1)
+        
+    elif component == 'uy':
+        data = np.max(fieldData.uy, axis=1)
+        
+    elif component == 'uz':
+        data = np.max(fieldData.uz, axis=1)
+    
+    if fieldData.nDims == 2:
+        #try an interpolator - this works
+        print 'Doing interpolation for plotting'
+        inputCoords = np.vstack((fieldData.nodePos[0], fieldData.nodePos[1])).T
+        interp = si.LinearNDInterpolator(inputCoords, data, fill_value=0.0)
+        nx = 400
+        ny = 400
+        xBase = np.linspace(np.min(fieldData.nodePos[0]), np.max(fieldData.nodePos[0]), nx)
+        yBase = np.linspace(np.min(fieldData.nodePos[1]), np.max(fieldData.nodePos[1]), ny)
+        
+        xs, ys = np.meshgrid(xBase, yBase)
+        
+        finalData = interp(xs, ys)
+        finalData *= 1./np.max(finalData)
+        
+        print 'Plotting'
+        extent_ = [xBase[0], xBase[-1], yBase[0], yBase[-1]]
+        ax.imshow(finalData, origin='lower', extent=extent_, aspect='auto')
+        #fig.colorbar(ax)
+        
+    elif fieldData.nDims == 3:
+        print 'Not implemented yet...'
+        
+    if returnFig == True:
+        return fig
+        
+    else:
+        return finalData,
 def plotFieldData(fieldData, increment, component='magnitude',
                   returnFig=False):
     '''

@@ -45,7 +45,7 @@ def loadFieldFile(fileName):
         The data in the field outpt file stored in a class container.
     '''
     if fileName[-11:] != '.pogo-field':
-        raise ValueError('File must be a .pogo-hist file.')
+		fieldName += '.pogo-field'
 
     with open(fileName, 'rb') as f:
         header = struct.unpack('20s', f.read(20))
