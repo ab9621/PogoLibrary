@@ -37,7 +37,7 @@ def writePogoInputFile(fileName,
                        historyMeasurementStart = 1,
                        fieldStoreIncrements = None,
                        folderIn = None,
-                       totalForce = False,
+                       totalLoad = False,
                        version=1.04):
     '''
     Function to write a Pogo input file directly to the Pogo format. Defaults
@@ -165,7 +165,7 @@ def writePogoInputFile(fileName,
         Use this if the file is being written in a different location to the
         one that this function is being called from. Default is None.
         
-    totalForce : boolean, optional
+    totalLoad : boolean, optional
         This is to be used in conjunction with a force load. Set to True to
         apply a total load which is then divided by the number of nodes that
         a load is applied to (True) or have the supplied force applied to all
@@ -457,14 +457,10 @@ def writePogoInputFile(fileName,
                 raise ValueError('signal {} amplitude must be a scalar or a vector of amplitudes for each node signal applied to.')
             
             ##### this needs fixing - need to generate an array if only a float is passed.
-            if type(signals[c1][1]) is float:
-                if totalForce == True:
-                    if sigType == 1:
-                        raise ValueError('totalForce not supported for displacement load.')
-                    else:
-                        ampVal = signals[c1][1]/nNodes
-                        print 'Modiying amplitude'
-                        print ampVal
+            if type(signals[c1][1]) is float or np.float64:
+                if totalLoad == True:
+                    ampVal = signals[c1][1]/nNodes
+                    print 'Modiying amplitude, amplitude per node = {}'.format(ampVal)
 
                 else:
                     ampVal = signals[c1][1]
@@ -475,21 +471,11 @@ def writePogoInputFile(fileName,
                 if len(signals[c1][1]) != nNodes:
                     raise ValueError('If signal amplitude is an array, a value must be specified for each node in the transducer.')
                 
-                if totalForce == True:
-                    raise Warning('totalForce is not supported for loads specified for individual nodes.')
+                if totalLoad == True:
+                    raise Warning('totalLoad is not supported for loads specified for individual nodes.')
 
                 amp = np.array([signals[c1][1],], dtype=precString)
             
-            elif type(signals[c1][1]) is np.float64:                
-                if totalForce == True:
-                    if sigType == 1:
-                        raise ValueError('totalForce not supported for displacement load.')
-                    else:
-                        ampVal = signals[c1][1]/nNodes
-                        print 'Modiying amplitude'
-                        print ampVal
-                amp = np.array(np.ones(nNodes)*signals[c1][1], dtype=precString)
-                
             else:
                 raise ValueError('Signal amplitude not recognised')
                 
